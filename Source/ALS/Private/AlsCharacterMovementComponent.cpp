@@ -11,6 +11,59 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(AlsCharacterMovementComponent)
 
+UAlsCharacterMovementComponent::UAlsCharacterMovementComponent(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer)
+{
+	SetNetworkMoveDataContainer(MoveDataContainer);
+
+	bTickBeforeOwner = true;
+
+	// NetworkMaxSmoothUpdateDistance = 92.0f;
+	// NetworkNoSmoothUpdateDistance = 140.0f;
+
+	MaxAcceleration = 1500.0f;
+	BrakingFrictionFactor = 0.0f;
+	SetCrouchedHalfHeight(56.0f);
+
+	bRunPhysicsWithNoController = true;
+
+	GroundFriction = 4.0f;
+	MaxWalkSpeed = 375.0f;
+	MaxWalkSpeedCrouched = 200.0f;
+	MinAnalogWalkSpeed = 25.0f;
+	bCanWalkOffLedgesWhenCrouching = true;
+
+	// bImpartBaseVelocityX = false;
+	// bImpartBaseVelocityY = false;
+	// bImpartBaseVelocityZ = false;
+	// bImpartBaseAngularVelocity = false;
+
+	bIgnoreBaseRotation = true;
+
+	PerchRadiusThreshold = 20.0f;
+	PerchAdditionalHeight = 0.0f;
+	LedgeCheckThreshold = 0.0f;
+
+	AirControl = 0.15f;
+
+	// https://unrealengine.hatenablog.com/entry/2019/01/16/231404
+
+	FallingLateralFriction = 1.0f;
+	JumpOffJumpZFactor = 0.0f;
+
+	bNetworkAlwaysReplicateTransformUpdateTimestamp = true; // Required for view network smoothing.
+
+	RotationRate = FRotator::ZeroRotator;
+	bUseControllerDesiredRotation = false;
+	bOrientRotationToMovement = false;
+
+	bAllowPhysicsRotationDuringAnimRootMotion = true; // Used to allow character rotation while rolling.
+
+	NavAgentProps.bCanCrouch = true;
+	NavAgentProps.bCanFly = true;
+	bUseAccelerationForPaths = true;
+}
+
 void FAlsCharacterNetworkMoveData::ClientFillNetworkMoveData(const FSavedMove_Character& Move, const ENetworkMoveType MoveType)
 {
 	Super::ClientFillNetworkMoveData(Move, MoveType);
@@ -117,58 +170,6 @@ FAlsNetworkPredictionData::FAlsNetworkPredictionData(const UCharacterMovementCom
 FSavedMovePtr FAlsNetworkPredictionData::AllocateNewMove()
 {
 	return MakeShared<FAlsSavedMove>();
-}
-
-UAlsCharacterMovementComponent::UAlsCharacterMovementComponent()
-{
-	SetNetworkMoveDataContainer(MoveDataContainer);
-
-	bTickBeforeOwner = true;
-
-	// NetworkMaxSmoothUpdateDistance = 92.0f;
-	// NetworkNoSmoothUpdateDistance = 140.0f;
-
-	MaxAcceleration = 1500.0f;
-	BrakingFrictionFactor = 0.0f;
-	SetCrouchedHalfHeight(56.0f);
-
-	bRunPhysicsWithNoController = true;
-
-	GroundFriction = 4.0f;
-	MaxWalkSpeed = 375.0f;
-	MaxWalkSpeedCrouched = 200.0f;
-	MinAnalogWalkSpeed = 25.0f;
-	bCanWalkOffLedgesWhenCrouching = true;
-
-	// bImpartBaseVelocityX = false;
-	// bImpartBaseVelocityY = false;
-	// bImpartBaseVelocityZ = false;
-	// bImpartBaseAngularVelocity = false;
-
-	bIgnoreBaseRotation = true;
-
-	PerchRadiusThreshold = 20.0f;
-	PerchAdditionalHeight = 0.0f;
-	LedgeCheckThreshold = 0.0f;
-
-	AirControl = 0.15f;
-
-	// https://unrealengine.hatenablog.com/entry/2019/01/16/231404
-
-	FallingLateralFriction = 1.0f;
-	JumpOffJumpZFactor = 0.0f;
-
-	bNetworkAlwaysReplicateTransformUpdateTimestamp = true; // Required for view network smoothing.
-
-	RotationRate = FRotator::ZeroRotator;
-	bUseControllerDesiredRotation = false;
-	bOrientRotationToMovement = false;
-
-	bAllowPhysicsRotationDuringAnimRootMotion = true; // Used to allow character rotation while rolling.
-
-	NavAgentProps.bCanCrouch = true;
-	NavAgentProps.bCanFly = true;
-	bUseAccelerationForPaths = true;
 }
 
 #if WITH_EDITOR
