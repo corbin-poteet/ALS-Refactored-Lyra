@@ -934,13 +934,13 @@ FVector AAlsCharacter::RagdollTraceGround(bool& bGrounded) const
 	const auto CollisionChannel{GetCharacterMovement()->UpdatedComponent->GetCollisionObjectType()};
 
 	FCollisionQueryParams QueryParameters{__FUNCTION__, false, this};
-	FCollisionResponseParams ResponseParameters;
-	GetCharacterMovement()->InitCollisionParams(QueryParameters, ResponseParameters);
+	FCollisionResponseParams CollisionResponses;
+	GetCharacterMovement()->InitCollisionParams(QueryParameters, CollisionResponses);
 
 	FHitResult Hit;
 	bGrounded = GetWorld()->SweepSingleByChannel(Hit, TraceStart, TraceEnd, FQuat::Identity,
 	                                             CollisionChannel, FCollisionShape::MakeSphere(CapsuleRadius),
-	                                             QueryParameters, ResponseParameters);
+	                                             QueryParameters, CollisionResponses);
 
 	// #if ENABLE_DRAW_DEBUG
 	// 	UAlsDebugUtility::DrawSweepSingleSphere(GetWorld(), TraceStart, TraceEnd, CapsuleRadius,
@@ -1081,7 +1081,7 @@ void AAlsCharacter::StopRagdollingImplementation()
 	// Restore the pelvis transform to the state it was in before we changed
 	// the character and mesh transforms to keep its world transform unchanged.
 
-	const auto& ReferenceSkeleton{GetMesh()->GetSkeletalMeshAsset()->GetRefSkeleton()};
+	const auto& ReferenceSkeleton{GetMesh()->GetSkinnedAsset()->GetRefSkeleton()};
 
 	const auto PelvisBoneIndex{ReferenceSkeleton.FindBoneIndex(UAlsConstants::PelvisBoneName())};
 	if (ALS_ENSURE(PelvisBoneIndex >= 0))

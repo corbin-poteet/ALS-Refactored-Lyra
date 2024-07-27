@@ -5,6 +5,7 @@
 #include "DrawDebugHelpers.h"
 #include "Components/CapsuleComponent.h"
 #include "Curves/CurveFloat.h"
+#include "Engine/SkeletalMesh.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Settings/AlsAnimationInstanceSettings.h"
 #include "Utility/AlsConstants.h"
@@ -29,6 +30,49 @@ void UAlsAnimationInstance::NativeInitializeAnimation()
 		Character = GetMutableDefault<AAlsCharacter>();
 	}
 #endif
+
+	const auto* Mesh{GetSkelMeshComponent()};
+
+	if (IsValid(Mesh) && IsValid(Mesh->GetSkinnedAsset()))
+	{
+		const auto& ReferenceSkeleton{Mesh->GetSkinnedAsset()->GetRefSkeleton()};
+		const auto PelvisBoneIndex{ReferenceSkeleton.FindBoneIndex(UAlsConstants::PelvisBoneName())};
+
+		static const auto GetThighAxis{
+			[](const FReferenceSkeleton& ReferenceSkeleton, const int32 PelvisBoneIndex, const FName& FootBoneName, FVector3f& ThighAxis)
+			{
+				auto ParentBoneIndex{ReferenceSkeleton.FindBoneIndex(FootBoneName)};
+				if (ParentBoneIndex < 0)
+				{
+					return;
+				}
+
+				while (true)
+				{
+					const auto NextParentBoneIndex{ReferenceSkeleton.GetParentIndex(ParentBoneIndex)};
+					if (NextParentBoneIndex <= 0)
+					{
+						return;
+					}
+
+					if (NextParentBoneIndex == PelvisBoneIndex)
+					{
+						break;
+					}
+
+					ParentBoneIndex = NextParentBoneIndex;
+				}
+
+				const auto& ThighTransform{ReferenceSkeleton.GetRefBonePose()[ParentBoneIndex]};
+
+				ThighAxis = FVector3f{ThighTransform.GetLocation()};
+				ThighAxis.Normalize();
+			}
+		};
+
+		GetThighAxis(ReferenceSkeleton, PelvisBoneIndex, UAlsConstants::FootLeftBoneName(), FeetState.Left.ThighAxis);
+		GetThighAxis(ReferenceSkeleton, PelvisBoneIndex, UAlsConstants::FootRightBoneName(), FeetState.Right.ThighAxis);
+	}
 }
 
 void UAlsAnimationInstance::NativeBeginPlay()
@@ -632,12 +676,15 @@ void UAlsAnimationInstance::RefreshVelocityBlend()
 
 	auto& VelocityBlend{GroundedState.VelocityBlend};
 
-	const auto RelativeVelocityDirection{GetRelativeVelocity().GetSafeNormal()};
+	auto RelativeVelocityDirection{GetRelativeVelocity()};
+	auto TargetVelocityBlend{FVector3f::ZeroVector};
 
-	const auto TargetVelocityBlend{
-		RelativeVelocityDirection /
-		(FMath::Abs(RelativeVelocityDirection.X) + FMath::Abs(RelativeVelocityDirection.Y) + FMath::Abs(RelativeVelocityDirection.Z))
-	};
+	if (RelativeVelocityDirection.Normalize())
+	{
+		TargetVelocityBlend =
+			RelativeVelocityDirection /
+			(FMath::Abs(RelativeVelocityDirection.X) + FMath::Abs(RelativeVelocityDirection.Y) + FMath::Abs(RelativeVelocityDirection.Z));
+	}
 
 	if (VelocityBlend.bInitializationRequired)
 	{
@@ -1016,16 +1063,13 @@ void UAlsAnimationInstance::RefreshInAirLean()
 	}
 }
 
-void UAlsAnimationInstance::InhibitFootLockForOneFrame()
-{
-	FeetState.bInhibitFootLockForOneFrame = true;
-}
-
 void UAlsAnimationInstance::RefreshFeetOnGameThread()
 {
 	check(IsInGameThread())
 
 	const auto* Mesh{GetSkelMeshComponent()};
+
+	FeetState.PelvisRotation = FQuat4f{Mesh->GetSocketTransform(UAlsConstants::PelvisBoneName(), RTS_Component).GetRotation()};
 
 	const auto FootLeftTargetTransform{
 		Mesh->GetSocketTransform(Settings->General.bUseFootIkBones
@@ -1058,8 +1102,6 @@ void UAlsAnimationInstance::RefreshFeet(const float DeltaTime)
 
 	RefreshFoot(FeetState.Right, UAlsConstants::FootRightIkCurveName(),
 	            UAlsConstants::FootRightLockCurveName(), ComponentTransformInverse, DeltaTime);
-
-	FeetState.bInhibitFootLockForOneFrame = false;
 }
 
 void UAlsAnimationInstance::RefreshFoot(FAlsFootState& FootState, const FName& IkCurveName, const FName& LockCurveName,
@@ -1076,7 +1118,7 @@ void UAlsAnimationInstance::ProcessFootLockTeleport(const float IkAmount, FAlsFo
 {
 	// Due to network smoothing, we assume that teleportation occurs over a short period of time, not
 	// in one frame, since after accepting the teleportation event, the character can still be moved for
-	// some indefinite time, and this must be taken into account in order to avoid foot locking glitches.
+	// some indefinite time, and this must be taken into account in order to avoid foot lock glitches.
 
 	if (bPendingUpdate || GetWorld()->TimeSince(TeleportedTime) > 0.2f || !FAnimWeight::IsRelevant(IkAmount * FootState.LockAmount))
 	{
@@ -1139,7 +1181,7 @@ void UAlsAnimationInstance::RefreshFootLock(const float IkAmount, FAlsFootState&
 
 	if (LocomotionState.bMovingSmooth || LocomotionMode != AlsLocomotionModeTags::Grounded)
 	{
-		// Smoothly disable foot locking if the character is moving or in the air,
+		// Smoothly disable foot lock if the character is moving or in the air,
 		// instead of relying on the curve value from the animation blueprint.
 
 		static constexpr auto MovingDecreaseSpeed{5.0f};
@@ -1221,10 +1263,30 @@ void UAlsAnimationInstance::RefreshFootLock(const float IkAmount, FAlsFootState&
 		FootState.LockAmount = NewLockAmount;
 	}
 
-	if (FeetState.bInhibitFootLockForOneFrame)
+	if (MovementBase.bHasRelativeLocation)
 	{
-		// Inhibition is implemented by temporarily performing all calculations in component space rather
-		// than in world space. So, the feet will still remain locked, but this time relative to the character.
+		FootState.LockLocation = MovementBase.Location +
+		                         MovementBase.Rotation.RotateVector(FVector{FootState.LockMovementBaseRelativeLocation});
+
+		FootState.LockRotation = MovementBase.Rotation * FQuat{FootState.LockMovementBaseRelativeRotation};
+	}
+
+	FootState.LockComponentRelativeLocation = FVector3f{ComponentTransformInverse.TransformPosition(FootState.LockLocation)};
+	FootState.LockComponentRelativeRotation = FQuat4f{ComponentTransformInverse.TransformRotation(FootState.LockRotation)};
+
+	// Limit the foot lock location so that legs do not twist into a spiral when the actor rotates quickly.
+
+	const auto ComponentRelativeThighAxis{FeetState.PelvisRotation.RotateVector(FootState.ThighAxis)};
+	const auto LockAngle{UAlsVector::AngleBetweenSignedXY(ComponentRelativeThighAxis, FootState.LockComponentRelativeLocation)};
+
+	if (FMath::Abs(LockAngle) > Settings->Feet.FootLockAngleLimit + UE_KINDA_SMALL_NUMBER)
+	{
+		const auto ConstrainedLockAngle{FMath::Clamp(LockAngle, -Settings->Feet.FootLockAngleLimit, Settings->Feet.FootLockAngleLimit)};
+		const FQuat4f OffsetRotation{FVector3f::UpVector, FMath::DegreesToRadians(ConstrainedLockAngle - LockAngle)};
+
+		FootState.LockComponentRelativeLocation = OffsetRotation.RotateVector(FootState.LockComponentRelativeLocation);
+		FootState.LockComponentRelativeRotation = OffsetRotation * FootState.LockComponentRelativeRotation;
+		FootState.LockComponentRelativeRotation.Normalize();
 
 		const auto& ComponentTransform{GetProxyOnAnyThread<FAnimInstanceProxy>().GetComponentTransform()};
 
@@ -1240,19 +1302,6 @@ void UAlsAnimationInstance::RefreshFootLock(const float IkAmount, FAlsFootState&
 
 			FootState.LockMovementBaseRelativeRotation = FQuat4f{BaseRotationInverse * FootState.LockRotation};
 		}
-	}
-	else
-	{
-		if (MovementBase.bHasRelativeLocation)
-		{
-			FootState.LockLocation =
-				MovementBase.Location + MovementBase.Rotation.RotateVector(FVector{FootState.LockMovementBaseRelativeLocation});
-
-			FootState.LockRotation = MovementBase.Rotation * FQuat{FootState.LockMovementBaseRelativeRotation};
-		}
-
-		FootState.LockComponentRelativeLocation = FVector3f{ComponentTransformInverse.TransformPosition(FootState.LockLocation)};
-		FootState.LockComponentRelativeRotation = FQuat4f{ComponentTransformInverse.TransformRotation(FootState.LockRotation)};
 	}
 
 	const auto FinalLocation{FMath::Lerp(FootState.TargetLocation, FootState.LockLocation, FootState.LockAmount)};
@@ -1573,13 +1622,6 @@ void UAlsAnimationInstance::RefreshRotateInPlace()
 		                              ? PlayRate
 		                              : FMath::FInterpTo(RotateInPlaceState.PlayRate, PlayRate,
 		                                                 GetDeltaSeconds(), PlayRateInterpolationSpeed);
-
-	if (ViewState.YawSpeed > Settings->RotateInPlace.FootLockInhibitionViewYawSpeedThreshold ||
-	    FMath::Abs(ViewState.YawAngle) > Settings->RotateInPlace.FootLockInhibitionViewYawAngleThreshold)
-	{
-		// Inhibit foot locking when rotating at a large angle or rotating too fast, otherwise the legs may twist into a spiral.
-		InhibitFootLockForOneFrame();
-	}
 }
 
 bool UAlsAnimationInstance::IsTurnInPlaceAllowed()
