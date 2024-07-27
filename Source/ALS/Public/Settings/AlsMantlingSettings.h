@@ -35,6 +35,13 @@ struct ALS_API FAlsMantlingParameters
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ALS")
 	EAlsMantlingType MantlingType{EAlsMantlingType::High};
+	
+	bool operator==(const FAlsMantlingParameters& Other) const
+	{
+		return TargetPrimitive == Other.TargetPrimitive && TargetRelativeLocation == Other.TargetRelativeLocation &&
+		       TargetRelativeRotation == Other.TargetRelativeRotation && MantlingHeight == Other.MantlingHeight &&
+		       MantlingType == Other.MantlingType;
+	}
 };
 
 UCLASS(Blueprintable, BlueprintType)

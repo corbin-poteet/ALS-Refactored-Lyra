@@ -1,7 +1,6 @@
 #pragma once
 
 #include "Character/LyraCharacter.h"
-#include "GameFramework/Character.h"
 #include "State/AlsLocomotionState.h"
 #include "State/AlsMantlingState.h"
 #include "State/AlsMovementBaseState.h"
@@ -493,10 +492,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "ALS|Character", Meta = (ReturnDisplayName = "Success"))
 	bool StartMantlingGrounded();
 
+	bool StartMantling(const FAlsMantlingTraceSettings& TraceSettings);
+
 private:
 	bool StartMantlingInAir();
-
-	bool StartMantling(const FAlsMantlingTraceSettings& TraceSettings);
 
 	UFUNCTION(Server, Reliable)
 	void ServerStartMantling(const FAlsMantlingParameters& Parameters);
