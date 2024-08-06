@@ -49,7 +49,8 @@ For more information, see the [Releases](https://github.com/Sixze/ALS-Refactored
 1. Clone the repository to your project's `Plugins/GameFeatures` folder, or download the latest release and extract it to your project's `Plugins/GameFeatures` folder.
 2. Export `ULyraAnimInstance` by changing `class ULyraAnimInstance : public UAnimInstance` to `class LYRAGAME_API ULyraAnimInstance : public UAnimInstance` in `LyraAnimInstance.h`
 3. Merge the `DefaultEngine.ini` and `DefaultInput.ini` files from the plugin's `Config` folder with files from your project's `Config` folder.
-4. Recompile your project.
+4. Recompile your project and launch the editor.
+5. In the content browser, navigate to `Content/Characters/Heroes/Mannequin/Meshes` and right-click `SK_Mannequin` and click `Scripted Asset Actions` then `Setup Als Skeleton`.
 
 ## Known Issues & Discussion
 
