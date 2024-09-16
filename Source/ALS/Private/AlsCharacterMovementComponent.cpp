@@ -170,6 +170,8 @@ UAlsCharacterMovementComponent::UAlsCharacterMovementComponent(const FObjectInit
 	// bImpartBaseAngularVelocity = false;
 	bIgnoreBaseRotation = true;
 
+	// bStayBasedInAir = true;
+
 	// These values prohibit the character movement component from affecting the actor's rotation.
 
 	RotationRate = FRotator::ZeroRotator;
@@ -184,9 +186,9 @@ UAlsCharacterMovementComponent::UAlsCharacterMovementComponent(const FObjectInit
 bool UAlsCharacterMovementComponent::CanEditChange(const FProperty* Property) const
 {
 	return Super::CanEditChange(Property) &&
-	       Property->GetFName() != GET_MEMBER_NAME_CHECKED(ThisClass, RotationRate) &&
-	       Property->GetFName() != GET_MEMBER_NAME_CHECKED(ThisClass, bUseControllerDesiredRotation) &&
-	       Property->GetFName() != GET_MEMBER_NAME_CHECKED(ThisClass, bOrientRotationToMovement);
+	       Property->GetFName() != GET_MEMBER_NAME_STRING_VIEW_CHECKED(ThisClass, RotationRate) &&
+	       Property->GetFName() != GET_MEMBER_NAME_STRING_VIEW_CHECKED(ThisClass, bUseControllerDesiredRotation) &&
+	       Property->GetFName() != GET_MEMBER_NAME_STRING_VIEW_CHECKED(ThisClass, bOrientRotationToMovement);
 }
 #endif
 
@@ -366,6 +368,9 @@ void UAlsCharacterMovementComponent::PhysWalking(const float DeltaTime, int32 It
 	bool bTriedLedgeMove = false;
 	float remainingTime = DeltaTime;
 
+	const EMovementMode StartingMovementMode = MovementMode;
+	const uint8 StartingCustomMovementMode = CustomMovementMode;
+
 	// Perform the move
 	while ( (remainingTime >= MIN_TICK_TIME) && (Iterations < MaxSimulationIterations) && CharacterOwner && (CharacterOwner->Controller || bRunPhysicsWithNoController || HasAnimRootMotion() || CurrentRootMotion.HasOverrideVelocity() || (CharacterOwner->GetLocalRole() == ROLE_SimulatedProxy)) )
 	{
@@ -397,9 +402,9 @@ void UAlsCharacterMovementComponent::PhysWalking(const float DeltaTime, int32 It
 		ApplyRootMotionToVelocity(timeTick);
 		// devCode(ensureMsgf(!Velocity.ContainsNaN(), TEXT("PhysWalking: Velocity contains NaN after Root Motion application (%s)\n%s"), *GetPathNameSafe(this), *Velocity.ToString()));
 
-		if( IsFalling() )
+		if (MovementMode != StartingMovementMode || CustomMovementMode != StartingCustomMovementMode)
 		{
-			// Root motion could have put us into Falling.
+			// Root motion could have taken us out of our current mode
 			// No movement has taken place this movement tick so we pass on full time/past iteration count
 			StartNewPhysics(remainingTime+timeTick, Iterations-1);
 			return;
@@ -420,9 +425,15 @@ void UAlsCharacterMovementComponent::PhysWalking(const float DeltaTime, int32 It
 			// try to move forward
 			MoveAlongFloor(MoveVelocity, timeTick, &StepDownResult);
 
-			if ( IsFalling() )
+			if (IsSwimming()) //just entered water
 			{
-				// pawn decided to jump up
+				StartSwimming(OldLocation, OldVelocity, timeTick, remainingTime, Iterations);
+				return;
+			}
+			else if (MovementMode != StartingMovementMode || CustomMovementMode != StartingCustomMovementMode)
+			{
+				// pawn ended up in a different mode, probably due to the step-up-and-over flow
+				// let's refund the estimated unused time (if any) and keep moving in the new mode
 				const float DesiredDist = UE_REAL_TO_FLOAT(Delta.Size());
 				if (DesiredDist > UE_KINDA_SMALL_NUMBER)
 				{
@@ -430,11 +441,6 @@ void UAlsCharacterMovementComponent::PhysWalking(const float DeltaTime, int32 It
 					remainingTime += timeTick * (1.f - FMath::Min(1.f,ActualDist/DesiredDist));
 				}
 				StartNewPhysics(remainingTime,Iterations);
-				return;
-			}
-			else if ( IsSwimming() ) //just entered water
-			{
-				StartSwimming(OldLocation, OldVelocity, timeTick, remainingTime, Iterations);
 				return;
 			}
 		}
@@ -666,7 +672,14 @@ void UAlsCharacterMovementComponent::ComputeFloorDist(const FVector& CapsuleLoca
 	}
 
 	bool bBlockingHit = false;
+
 	FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(ComputeFloorDist), false, CharacterOwner);
+	// Having a character base on a component within a cluster union will cause replication problems.
+	// The issue is that ACharacter::SetBase() gets a GeometryCollectionComponent passed to it when standing on the DynamicPlatform
+	// and that GC is never simulating, and since it's not simulating it's stopping the based movement flow there for simulated proxies.
+	QueryParams.bTraceIntoSubComponents = true;
+	QueryParams.bReplaceHitWithSubComponents = false;
+
 	FCollisionResponseParams ResponseParam;
 	InitCollisionParams(QueryParams, ResponseParam);
 	const ECollisionChannel CollisionChannel = UpdatedComponent->GetCollisionObjectType();
@@ -865,7 +878,7 @@ void UAlsCharacterMovementComponent::MoveAutonomous(const float ClientTimeStamp,
 
 void UAlsCharacterMovementComponent::SavePenetrationAdjustment(const FHitResult& Hit)
 {
-	if (Hit.bStartPenetrating)
+	if (bAllowImprovedPenetrationAdjustment && Hit.bStartPenetrating)
 	{
 		PendingPenetrationAdjustment = Hit.Normal * Hit.PenetrationDepth;
 	}
@@ -931,8 +944,8 @@ void UAlsCharacterMovementComponent::RefreshGroundedMovementSettings()
 	auto WalkSpeed{GaitSettings.WalkForwardSpeed};
 	auto RunSpeed{GaitSettings.RunForwardSpeed};
 
-	if (Velocity.SizeSquared() > UE_KINDA_SMALL_NUMBER &&
-	    RotationMode != AlsRotationModeTags::VelocityDirection &&
+	if (GaitSettings.bAllowDirectionDependentMovementSpeed &&
+	    Velocity.SizeSquared() > UE_KINDA_SMALL_NUMBER &&
 	    IsValid(MovementSettings))
 	{
 		const auto* Controller{GetController()};
@@ -965,17 +978,17 @@ void UAlsCharacterMovementComponent::RefreshGroundedMovementSettings()
 
 	const auto Speed{UE_REAL_TO_FLOAT(Velocity.Size2D())};
 
-	if (Speed <= WalkSpeed)
+	if (Speed > RunSpeed)
 	{
-		GaitAmount = FMath::GetMappedRangeValueClamped(FVector2f{0.0f, WalkSpeed}, {0.0f, 1.0f}, Speed);
+		GaitAmount = FMath::GetMappedRangeValueClamped(FVector2f{RunSpeed, GaitSettings.SprintSpeed}, {2.0f, 3.0f}, Speed);
 	}
-	else if (Speed <= RunSpeed)
+	else if (Speed > WalkSpeed)
 	{
 		GaitAmount = FMath::GetMappedRangeValueClamped(FVector2f{WalkSpeed, RunSpeed}, {1.0f, 2.0f}, Speed);
 	}
 	else
 	{
-		GaitAmount = FMath::GetMappedRangeValueClamped(FVector2f{RunSpeed, GaitSettings.SprintSpeed}, {2.0f, 3.0f}, Speed);
+		GaitAmount = FMath::GetMappedRangeValueClamped(FVector2f{0.0f, WalkSpeed}, {0.0f, 1.0f}, Speed);
 	}
 
 	if (MaxAllowedGait == AlsGaitTags::Walking)

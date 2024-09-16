@@ -28,7 +28,7 @@ public:
 class ALS_API FAlsCharacterNetworkMoveDataContainer : public FCharacterNetworkMoveDataContainer
 {
 public:
-	FAlsCharacterNetworkMoveData MoveData[3]{};
+	TStaticArray<FAlsCharacterNetworkMoveData, 3> MoveData;
 
 public:
 	FAlsCharacterNetworkMoveDataContainer();
@@ -81,6 +81,11 @@ class ALS_API UAlsCharacterMovementComponent : public ULyraCharacterMovementComp
 public:
 	UAlsCharacterMovementComponent(const FObjectInitializer& ObjectInitializer);
 	
+	// If checked, this improves the response to interaction from moving kinematic physical
+	// bodies, but may cause some issues when interacting with simulated physical bodies.
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Settings", Transient)
+	uint8 bAllowImprovedPenetrationAdjustment : 1 {true};
+
 protected:
 	FAlsCharacterNetworkMoveDataContainer MoveDataContainer;
 
@@ -102,7 +107,7 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "State", Transient, Meta = (ClampMin = 0, ClampMax = 3))
 	float GaitAmount{0.0f};
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "State", Transient, Meta = (ClampMin = 0))
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "State", Transient, Meta = (ClampMin = 0, ForceUnits = "cm/s^2"))
 	float MaxAccelerationWalking{0.0f};
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "State", Transient)

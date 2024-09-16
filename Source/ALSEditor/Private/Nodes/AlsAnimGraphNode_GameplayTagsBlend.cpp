@@ -4,7 +4,7 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(AlsAnimGraphNode_GameplayTagsBlend)
 
-#define LOCTEXT_NAMESPACE "AlsGameplayTagsBlendAnimationGraphNode"
+#define LOCTEXT_NAMESPACE "AlsAnimGraphNode_GameplayTagsBlend"
 
 UAlsAnimGraphNode_GameplayTagsBlend::UAlsAnimGraphNode_GameplayTagsBlend()
 {
@@ -13,7 +13,7 @@ UAlsAnimGraphNode_GameplayTagsBlend::UAlsAnimGraphNode_GameplayTagsBlend()
 
 void UAlsAnimGraphNode_GameplayTagsBlend::PostEditChangeProperty(FPropertyChangedEvent& ChangedEvent)
 {
-	if (ChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(FAlsAnimNode_GameplayTagsBlend, Tags))
+	if (ChangedEvent.GetPropertyName() == GET_MEMBER_NAME_STRING_VIEW_CHECKED(FAlsAnimNode_GameplayTagsBlend, Tags))
 	{
 		ReconstructNode();
 	}

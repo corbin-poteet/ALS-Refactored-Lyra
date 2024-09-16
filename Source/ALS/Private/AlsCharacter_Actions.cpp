@@ -25,7 +25,7 @@ void AAlsCharacter::StartRolling(const float PlayRate)
 	{
 		StartRolling(PlayRate, Settings->Rolling.bRotateToInputOnStart && LocomotionState.bHasInput
 			                       ? LocomotionState.InputYawAngle
-			                       : UE_REAL_TO_FLOAT(FRotator::NormalizeAxis(GetActorRotation().Yaw)));
+			                       : UE_REAL_TO_FLOAT(FMath::UnwindDegrees(GetActorRotation().Yaw)));
 	}
 }
 
@@ -50,7 +50,7 @@ void AAlsCharacter::StartRolling(const float PlayRate, const float TargetYawAngl
 		return;
 	}
 
-	const auto InitialYawAngle{UE_REAL_TO_FLOAT(FRotator::NormalizeAxis(GetActorRotation().Yaw))};
+	const auto InitialYawAngle{UE_REAL_TO_FLOAT(FMath::UnwindDegrees(GetActorRotation().Yaw))};
 
 	if (GetLocalRole() >= ROLE_Authority)
 	{
@@ -129,7 +129,7 @@ void AAlsCharacter::RefreshRollingPhysics(const float DeltaTime)
 	}
 	else
 	{
-		TargetRotation.Yaw = UAlsRotation::ExponentialDecayAngle(UE_REAL_TO_FLOAT(FRotator::NormalizeAxis(TargetRotation.Yaw)),
+		TargetRotation.Yaw = UAlsRotation::ExponentialDecayAngle(UE_REAL_TO_FLOAT(FMath::UnwindDegrees(TargetRotation.Yaw)),
 		                                                         RollingState.TargetYawAngle, DeltaTime,
 		                                                         Settings->Rolling.RotationInterpolationSpeed);
 
@@ -162,10 +162,10 @@ bool AAlsCharacter::StartMantling(const FAlsMantlingTraceSettings& TraceSettings
 	}
 
 	const auto ActorLocation{GetActorLocation()};
-	const auto ActorYawAngle{UE_REAL_TO_FLOAT(FRotator::NormalizeAxis(GetActorRotation().Yaw))};
+	const auto ActorYawAngle{UE_REAL_TO_FLOAT(FMath::UnwindDegrees(GetActorRotation().Yaw))};
 
 	float ForwardTraceAngle;
-	if (LocomotionState.bHasSpeed)
+	if (LocomotionState.bHasVelocity)
 	{
 		ForwardTraceAngle = LocomotionState.bHasInput
 			                    ? LocomotionState.VelocityYawAngle +
@@ -178,7 +178,7 @@ bool AAlsCharacter::StartMantling(const FAlsMantlingTraceSettings& TraceSettings
 		ForwardTraceAngle = LocomotionState.bHasInput ? LocomotionState.InputYawAngle : ActorYawAngle;
 	}
 
-	const auto ForwardTraceDeltaAngle{FRotator3f::NormalizeAxis(ForwardTraceAngle - ActorYawAngle)};
+	const auto ForwardTraceDeltaAngle{FMath::UnwindDegrees(ForwardTraceAngle - ActorYawAngle)};
 	if (FMath::Abs(ForwardTraceDeltaAngle) > Settings->Mantling.TraceAngleThreshold)
 	{
 		return false;
@@ -542,6 +542,7 @@ UAlsMantlingSettings* AAlsCharacter::SelectMantlingSettings_Implementation(EAlsM
 	return nullptr;
 }
 
+// ReSharper disable once CppMemberFunctionMayBeStatic
 float AAlsCharacter::CalculateMantlingStartTime(const UAlsMantlingSettings* MantlingSettings, const float MantlingHeight) const
 {
 	if (!MantlingSettings->bAutoCalculateStartTime)
@@ -1049,7 +1050,7 @@ void AAlsCharacter::StopRagdollingImplementation()
 
 	// Determine whether the ragdoll is facing upward or downward and set the actor rotation accordingly.
 
-	const auto bRagdollFacingUpward{FRotator::NormalizeAxis(PelvisRotation.Roll) <= 0.0f};
+	const auto bRagdollFacingUpward{FMath::UnwindDegrees(PelvisRotation.Roll) <= 0.0f};
 
 	auto NewActorRotation{GetActorRotation()};
 	NewActorRotation.Yaw = bRagdollFacingUpward ? PelvisRotation.Yaw - 180.0f : PelvisRotation.Yaw;

@@ -24,7 +24,9 @@ void UAlsAnimationInstance::NativeInitializeAnimation()
 	Character = Cast<AAlsCharacter>(GetOwningActor());
 
 #if WITH_EDITOR
-	if (!GetWorld()->IsGameWorld() && !IsValid(Character))
+	const auto* World{GetWorld()};
+
+	if (IsValid(World) && !World->IsGameWorld() && !IsValid(Character))
 	{
 		// Use default objects for editor preview.
 		Character = GetMutableDefault<AAlsCharacter>();
@@ -213,6 +215,7 @@ FAlsControlRigInput UAlsAnimationInstance::GetControlRigInput() const
 		.FootLeftRotation{FQuat{FeetState.Left.FinalRotation}},
 		.FootRightLocation{FVector{FeetState.Right.FinalLocation}},
 		.FootRightRotation{FQuat{FeetState.Right.FinalRotation}},
+		.WalkableFloorAngle{LocomotionState.WalkableFloorAngle},
 		.SpineYawAngle = SpineState.YawAngle
 	};
 }
@@ -344,8 +347,8 @@ void UAlsAnimationInstance::RefreshView(const float DeltaTime)
 {
 	if (!LocomotionAction.IsValid())
 	{
-		ViewState.YawAngle = FRotator3f::NormalizeAxis(UE_REAL_TO_FLOAT(ViewState.Rotation.Yaw - LocomotionState.Rotation.Yaw));
-		ViewState.PitchAngle = FRotator3f::NormalizeAxis(UE_REAL_TO_FLOAT(ViewState.Rotation.Pitch - LocomotionState.Rotation.Pitch));
+		ViewState.YawAngle = FMath::UnwindDegrees(UE_REAL_TO_FLOAT(ViewState.Rotation.Yaw - LocomotionState.Rotation.Yaw));
+		ViewState.PitchAngle = FMath::UnwindDegrees(UE_REAL_TO_FLOAT(ViewState.Rotation.Pitch - LocomotionState.Rotation.Pitch));
 
 		ViewState.PitchAmount = 0.5f - ViewState.PitchAngle / 180.0f;
 	}
@@ -442,20 +445,20 @@ void UAlsAnimationInstance::RefreshSpine(const float SpineBlendAmount, const flo
 			if (MovementBase.bHasRelativeRotation)
 			{
 				// Offset the angle to keep it relative to the movement base.
-				SpineState.LastActorYawAngle = FRotator3f::NormalizeAxis(UE_REAL_TO_FLOAT(
+				SpineState.LastActorYawAngle = FMath::UnwindDegrees(UE_REAL_TO_FLOAT(
 					SpineState.LastActorYawAngle + MovementBase.DeltaRotation.Yaw));
 			}
 
 			// Offset the spine rotation to keep it unchanged in world space to achieve a smoother spine rotation when aiming stops.
 
-			auto YawAngleOffset{FRotator3f::NormalizeAxis(UE_REAL_TO_FLOAT(SpineState.LastActorYawAngle - LocomotionState.Rotation.Yaw))};
+			auto YawAngleOffset{FMath::UnwindDegrees(UE_REAL_TO_FLOAT(SpineState.LastActorYawAngle - LocomotionState.Rotation.Yaw))};
 
 			// Keep the offset within 30 degrees, otherwise the spine rotation may lag too much behind the actor rotation.
 
 			static constexpr auto MaxYawAngleOffset{30.0f};
 			YawAngleOffset = FMath::Clamp(YawAngleOffset, -MaxYawAngleOffset, MaxYawAngleOffset);
 
-			SpineState.LastActorYawAngle = FRotator3f::NormalizeAxis(UE_REAL_TO_FLOAT(YawAngleOffset + LocomotionState.Rotation.Yaw));
+			SpineState.LastActorYawAngle = FMath::UnwindDegrees(UE_REAL_TO_FLOAT(YawAngleOffset + LocomotionState.Rotation.Yaw));
 
 			SpineState.CurrentYawAngle = UAlsRotation::LerpAngle(0.0f, SpineState.LastYawAngle + YawAngleOffset,
 			                                                     SpineState.SpineAmount * SpineState.SpineAmountScale +
@@ -493,7 +496,7 @@ void UAlsAnimationInstance::RefreshLook()
 	if (MovementBase.bHasRelativeRotation)
 	{
 		// Offset the angle to keep it relative to the movement base.
-		LookState.WorldYawAngle = FRotator3f::NormalizeAxis(UE_REAL_TO_FLOAT(LookState.WorldYawAngle + MovementBase.DeltaRotation.Yaw));
+		LookState.WorldYawAngle = FMath::UnwindDegrees(UE_REAL_TO_FLOAT(LookState.WorldYawAngle + MovementBase.DeltaRotation.Yaw));
 	}
 
 	float TargetYawAngle;
@@ -504,7 +507,7 @@ void UAlsAnimationInstance::RefreshLook()
 	{
 		// Look towards input direction.
 
-		TargetYawAngle = FRotator3f::NormalizeAxis(
+		TargetYawAngle = FMath::UnwindDegrees(
 			(LocomotionState.bHasInput ? LocomotionState.InputYawAngle : LocomotionState.TargetYawAngle) - ActorYawAngle);
 
 		TargetPitchAngle = 0.0f;
@@ -528,12 +531,12 @@ void UAlsAnimationInstance::RefreshLook()
 	}
 	else
 	{
-		const auto YawAngle{FRotator3f::NormalizeAxis(LookState.WorldYawAngle - ActorYawAngle)};
-		auto DeltaYawAngle{FRotator3f::NormalizeAxis(TargetYawAngle - YawAngle)};
+		const auto YawAngle{FMath::UnwindDegrees(LookState.WorldYawAngle - ActorYawAngle)};
+		auto DeltaYawAngle{FMath::UnwindDegrees(TargetYawAngle - YawAngle)};
 
-		if (DeltaYawAngle < -180.0f + UAlsRotation::ClockwiseRotationAngleThreshold)
+		if (DeltaYawAngle > 180.0f - UAlsRotation::CounterClockwiseRotationAngleThreshold)
 		{
-			DeltaYawAngle += 360.0f;
+			DeltaYawAngle -= 360.0f;
 		}
 		else if (FMath::Abs(LocomotionState.YawSpeed) > UE_SMALL_NUMBER && FMath::Abs(TargetYawAngle) > 90.0f)
 		{
@@ -545,11 +548,11 @@ void UAlsAnimationInstance::RefreshLook()
 
 		const auto InterpolationAmount{UAlsMath::ExponentialDecay(GetDeltaSeconds(), InterpolationSpeed)};
 
-		LookState.YawAngle = FRotator3f::NormalizeAxis(YawAngle + DeltaYawAngle * InterpolationAmount);
+		LookState.YawAngle = FMath::UnwindDegrees(YawAngle + DeltaYawAngle * InterpolationAmount);
 		LookState.PitchAngle = UAlsRotation::LerpAngle(LookState.PitchAngle, TargetPitchAngle, InterpolationAmount);
 	}
 
-	LookState.WorldYawAngle = FRotator3f::NormalizeAxis(ActorYawAngle + LookState.YawAngle);
+	LookState.WorldYawAngle = FMath::UnwindDegrees(ActorYawAngle + LookState.YawAngle);
 
 	// Separate the yaw angle into 3 separate values. These 3 values are used to improve the
 	// blending of the view when rotating completely around the character. This allows to
@@ -584,11 +587,12 @@ void UAlsAnimationInstance::RefreshLocomotionOnGameThread()
 
 	LocomotionState.MaxAcceleration = Movement->GetMaxAcceleration();
 	LocomotionState.MaxBrakingDeceleration = Movement->GetMaxBrakingDeceleration();
-	LocomotionState.WalkableFloorZ = Movement->GetWalkableFloorZ();
+	LocomotionState.WalkableFloorAngle = Movement->GetWalkableFloorAngle();
+	LocomotionState.WalkableFloorAngleCos = Movement->GetWalkableFloorZ();
 
 	LocomotionState.bMoving = Locomotion.bMoving;
 
-	LocomotionState.bMovingSmooth = (Locomotion.bHasInput && Locomotion.bHasSpeed) ||
+	LocomotionState.bMovingSmooth = (Locomotion.bHasInput && Locomotion.bHasVelocity) ||
 	                                Locomotion.Speed > Settings->General.MovingSmoothSpeedThreshold;
 
 	LocomotionState.TargetYawAngle = Locomotion.TargetYawAngle;
@@ -597,7 +601,7 @@ void UAlsAnimationInstance::RefreshLocomotionOnGameThread()
 	LocomotionState.RotationQuaternion = Locomotion.Rotation.Quaternion();
 
 	LocomotionState.YawSpeed = ActorDeltaTime > UE_SMALL_NUMBER
-		                           ? FRotator3f::NormalizeAxis(UE_REAL_TO_FLOAT(
+		                           ? FMath::UnwindDegrees(UE_REAL_TO_FLOAT(
 			                             Locomotion.Rotation.Yaw - Locomotion.PreviousYawAngle)) / ActorDeltaTime
 		                           : 0.0f;
 
@@ -759,7 +763,7 @@ void UAlsAnimationInstance::RefreshGroundedMovement()
 	GroundedState.HipsDirectionLockAmount = FMath::Clamp(GetCurveValue(UAlsConstants::HipsDirectionLockCurveName()), -1.0f, 1.0f);
 
 	const auto ViewRelativeVelocityYawAngle{
-		FRotator3f::NormalizeAxis(UE_REAL_TO_FLOAT(LocomotionState.VelocityYawAngle - ViewState.Rotation.Yaw))
+		FMath::UnwindDegrees(UE_REAL_TO_FLOAT(LocomotionState.VelocityYawAngle - ViewState.Rotation.Yaw))
 	};
 
 	RefreshMovementDirection(ViewRelativeVelocityYawAngle);
@@ -842,6 +846,8 @@ void UAlsAnimationInstance::RefreshStandingMovement()
 	// the play rate is always in sync with the currently blended animation. The value is also divided by the
 	// stride blend and the capsule scale so that the play rate increases as the stride or scale gets smaller.
 
+	// TODO Automatically calculate the play rate, such as is done in the UAnimDistanceMatchingLibrary::SetPlayrateToMatchSpeed() function.
+
 	const auto WalkRunSpeedAmount{
 		FMath::Lerp(Speed / Settings->Standing.AnimatedWalkSpeed,
 		            Speed / Settings->Standing.AnimatedRunSpeed,
@@ -856,7 +862,6 @@ void UAlsAnimationInstance::RefreshStandingMovement()
 
 	// Do not let the play rate be exactly zero, otherwise animation notifies
 	// may start to be triggered every frame until the play rate is changed.
-
 	// TODO Check the need for this hack in future engine versions.
 
 	StandingState.PlayRate = FMath::Clamp(WalkRunSprintSpeedAmount / StandingState.StrideBlendAmount, UE_KINDA_SMALL_NUMBER, 3.0f);
@@ -1005,7 +1010,7 @@ void UAlsAnimationInstance::RefreshGroundPrediction()
 	                                 FCollisionShape::MakeCapsule(LocomotionState.CapsuleRadius, LocomotionState.CapsuleHalfHeight),
 	                                 {__FUNCTION__, false, Character}, Settings->InAir.GroundPredictionSweepResponses);
 
-	const auto bGroundValid{Hit.IsValidBlockingHit() && Hit.ImpactNormal.Z >= LocomotionState.WalkableFloorZ};
+	const auto bGroundValid{Hit.IsValidBlockingHit() && Hit.ImpactNormal.Z >= LocomotionState.WalkableFloorAngleCos};
 
 #if WITH_EDITORONLY_DATA && ENABLE_DRAW_DEBUG
 	if (bDisplayDebugTraces)
@@ -1328,11 +1333,11 @@ void UAlsAnimationInstance::PlayQuickStopAnimation()
 	}
 
 	auto RemainingYawAngle{
-		FRotator3f::NormalizeAxis(UE_REAL_TO_FLOAT(
+		FMath::UnwindDegrees(UE_REAL_TO_FLOAT(
 			(LocomotionState.bHasInput ? LocomotionState.InputYawAngle : LocomotionState.TargetYawAngle) - LocomotionState.Rotation.Yaw))
 	};
 
-	RemainingYawAngle = UAlsRotation::RemapAngleForClockwiseRotation(RemainingYawAngle);
+	RemainingYawAngle = UAlsRotation::RemapAngleForCounterClockwiseRotation(RemainingYawAngle);
 
 	// Scale quick stop animation play rate based on how far the character
 	// is going to rotate. At 180 degrees, the play rate will be maximal.
@@ -1688,7 +1693,7 @@ void UAlsAnimationInstance::RefreshTurnInPlace()
 
 	// Select settings based on turn angle and stance.
 
-	const auto bTurnLeft{UAlsRotation::RemapAngleForClockwiseRotation(ViewState.YawAngle) <= 0.0f};
+	const auto bTurnLeft{UAlsRotation::RemapAngleForCounterClockwiseRotation(ViewState.YawAngle) <= 0.0f};
 
 	UAlsTurnInPlaceSettings* TurnInPlaceSettings{nullptr};
 	FName TurnInPlaceSlotName;

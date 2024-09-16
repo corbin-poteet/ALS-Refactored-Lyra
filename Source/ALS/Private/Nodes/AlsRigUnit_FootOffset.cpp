@@ -1,5 +1,6 @@
 #include "Nodes/AlsRigUnit_FootOffset.h"
 
+#include "Engine/HitResult.h"
 #include "Engine/World.h"
 #include "Utility/AlsRotation.h"
 
@@ -81,12 +82,14 @@ FAlsRigUnit_FootOffset_Execute()
 
 		const auto SlopeAngleCos{UE_REAL_TO_FLOAT(HitNormal.Z)};
 
-		const auto FootHeightOffset{SlopeAngleCos > UE_SMALL_NUMBER ? FootHeight / SlopeAngleCos - FootHeight : 0.0f};
+		// Calculate how much we need to offset the foot along the Z axis to get it perfectly aligned with the sloped surface.
+		// Without this, the foot will sink into the surface. This formula can be derived from the right triangle cosine formula
+		// cos(a) = adjacent / hypotenuse, where cos(a) is SlopeAngleCos and adjacent is FootHeight. HitLocation.Z already contains
+		// a correction for FootHeight, so we need to subtract the FootHeight at the end of the formula so it won't be applied twice.
 
-		// Find the difference between the impact location and the expected (flat) floor location.
-		// These values are offset by the foot height to get better behavior on sloped surfaces.
+		const auto SlopeOffsetZ{SlopeAngleCos > UE_SMALL_NUMBER ? FootHeight / SlopeAngleCos - FootHeight : 0.0f};
 
-		OffsetTargetLocationZ = UE_REAL_TO_FLOAT(HitLocation.Z + FootHeightOffset);
+		OffsetTargetLocationZ = UE_REAL_TO_FLOAT(HitLocation.Z + SlopeOffsetZ);
 
 		// Calculate the rotation offset.
 
@@ -97,18 +100,17 @@ FAlsRigUnit_FootOffset_Execute()
 			DrawInterface->DrawPoint(FTransform::Identity, HitLocation, 12.0f, {0.0f, 0.75f, 1.0f});
 		}
 	}
+	else
+	{
+		OffsetTargetLocationZ = 0.0f;
+		OffsetTargetRotation = FQuat::Identity;
+	}
 
 	// Interpolate current offsets to the new target values.
-
-	static constexpr auto LocationInterpolationFrequency{0.4f};
-	static constexpr auto LocationInterpolationDampingRatio{4.0f};
-	static constexpr auto LocationInterpolationTargetVelocityAmount{1.0f};
 
 	OffsetLocationZ = UAlsMath::SpringDampFloat(OffsetSpringState, OffsetLocationZ, OffsetTargetLocationZ,
 	                                            ExecuteContext.GetDeltaTime(), LocationInterpolationFrequency,
 	                                            LocationInterpolationDampingRatio, LocationInterpolationTargetVelocityAmount);
-
-	static constexpr auto RotationInterpolationSpeed{30.0f};
 
 	OffsetRotation = UAlsRotation::InterpolateQuaternionFast(OffsetRotation, OffsetTargetRotation,
 	                                                         ExecuteContext.GetDeltaTime(), RotationInterpolationSpeed);

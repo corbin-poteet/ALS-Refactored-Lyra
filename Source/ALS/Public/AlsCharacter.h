@@ -18,7 +18,7 @@ class UAlsMovementSettings;
 class UAlsAnimationInstance;
 class UAlsMantlingSettings;
 
-UCLASS(AutoExpandCategories = ("Settings|Als Character", "Settings|Als Character|Desired State", "State|Als Character"))
+UCLASS(AutoExpandCategories = ("Settings|Als Character", "Settings|Als Character|Desired State"))
 class ALS_API AAlsCharacter : public ALyraCharacter
 {
 	GENERATED_BODY()
@@ -89,6 +89,9 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "State|Als Character",
 		Transient, Replicated, Meta = (ClampMin = -180, ClampMax = 180, ForceUnits = "deg"))
 	float DesiredVelocityYawAngle{0.0f};
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "State|Als Character", Transient)
+	uint8 bHasDesiredVelocity : 1 {false};
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "State|Als Character", Transient)
 	FAlsLocomotionState LocomotionState;
@@ -177,7 +180,7 @@ protected:
 
 	virtual void NotifyLocomotionModeChanged(const FGameplayTag& PreviousLocomotionMode);
 
-	UFUNCTION(BlueprintNativeEvent, Category = "Als Character")
+	UFUNCTION(BlueprintImplementableEvent, Category = "Als Character")
 	void OnLocomotionModeChanged(const FGameplayTag& PreviousLocomotionMode);
 
 	// Desired Aiming
@@ -231,7 +234,7 @@ protected:
 
 	virtual void NotifyRotationModeChanged(const FGameplayTag& PreviousRotationMode);
 
-	UFUNCTION(BlueprintNativeEvent, Category = "Als Character")
+	UFUNCTION(BlueprintImplementableEvent, Category = "Als Character")
 	void OnRotationModeChanged(const FGameplayTag& PreviousRotationMode);
 
 	void RefreshRotationMode();
@@ -345,7 +348,7 @@ public:
 protected:
 	virtual void NotifyLocomotionActionChanged(const FGameplayTag& PreviousLocomotionAction);
 
-	UFUNCTION(BlueprintNativeEvent, Category = "Als Character")
+	UFUNCTION(BlueprintImplementableEvent, Category = "Als Character")
 	void OnLocomotionActionChanged(const FGameplayTag& PreviousLocomotionAction);
 
 	// Input
@@ -398,6 +401,12 @@ private:
 	void RefreshLocomotion();
 
 	void RefreshLocomotionLate();
+
+	UFUNCTION(Server, Reliable)
+	void ServerSetInitialVelocityYawAngle(float NewVelocityYawAngle);
+
+	UFUNCTION(NetMulticast, Reliable)
+	void MulticastSetInitialVelocityYawAngle(float NewVelocityYawAngle);
 
 	// Jumping
 

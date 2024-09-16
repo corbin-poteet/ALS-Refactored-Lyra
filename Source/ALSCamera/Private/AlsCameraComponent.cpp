@@ -3,6 +3,7 @@
 #include "AlsCameraSettings.h"
 #include "DrawDebugHelpers.h"
 #include "Animation/AnimInstance.h"
+#include "Engine/OverlapResult.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/WorldSettings.h"
 #include "Utility/AlsCameraConstants.h"
@@ -494,6 +495,11 @@ FVector UAlsCameraComponent::CalculateCameraTrace(const FVector& CameraTargetLoc
 			{
 				TraceResult = Hit.Location;
 			}
+		}
+		else
+		{
+			// Note that TraceStart may be changed even if TryAdjustLocationBlockedByGeometry() returned false.
+			TraceResult = TraceStart;
 		}
 	}
 
