@@ -677,6 +677,11 @@ void AAlsCharacter::SetRotationMode(const FGameplayTag& NewRotationMode)
 
 void AAlsCharacter::NotifyRotationModeChanged(const FGameplayTag& PreviousRotationMode)
 {
+	// This prevents the actor from rotating in the last input direction after the
+	// rotation mode has been changed and the actor is not moving at that moment.
+
+	LocomotionState.bRotationTowardsLastInputDirectionBlocked = true;
+
 	OnRotationModeChanged(PreviousRotationMode);
 }
 
@@ -1368,6 +1373,17 @@ void AAlsCharacter::RefreshLocomotionLocationAndRotation()
 
 void AAlsCharacter::RefreshLocomotionEarly()
 {
+	if (!LocomotionState.bMoving &&
+	    RotationMode == AlsRotationModeTags::VelocityDirection &&
+	    Settings->bInheritMovementBaseRotationInVelocityDirectionRotationMode)
+	{
+		DesiredVelocityYawAngle = FMath::UnwindDegrees(UE_REAL_TO_FLOAT(
+			DesiredVelocityYawAngle + MovementBase.DeltaRotation.Yaw));
+
+		LocomotionState.VelocityYawAngle = FMath::UnwindDegrees(UE_REAL_TO_FLOAT(
+			LocomotionState.VelocityYawAngle + MovementBase.DeltaRotation.Yaw));
+	}
+
 	if (MovementBase.bHasRelativeRotation)
 	{
 		// Offset the rotations (the actor's rotation too) to keep them relative to the movement base.
@@ -1552,14 +1568,6 @@ void AAlsCharacter::RefreshGroundedRotation(const float DeltaTime)
 		return;
 	}
 
-	if (RotationMode != AlsRotationModeTags::VelocityDirection)
-	{
-		// This prevents the actor from rotating in the last input direction after the rotation mode
-		// has been changed to the velocity direction and the actor is not moving at that moment.
-
-		LocomotionState.bRotationTowardsLastInputDirectionBlocked = true;
-	}
-
 	if (!LocomotionState.bMoving)
 	{
 		// Not moving.
@@ -1573,24 +1581,53 @@ void AAlsCharacter::RefreshGroundedRotation(const float DeltaTime)
 
 		if (RotationMode == AlsRotationModeTags::VelocityDirection)
 		{
-			// Rotate to the last target yaw angle when not moving (relative to the movement base or not).
+			float TargetYawAngle;
 
-			auto TargetYawAngle{
-				LocomotionState.bRotationTowardsLastInputDirectionBlocked
-					? LocomotionState.TargetYawAngle
-					: Settings->bRotateTowardsDesiredVelocityInVelocityDirectionRotationMode
-					? DesiredVelocityYawAngle
-					: LocomotionState.VelocityYawAngle
-			};
-
-			if (MovementBase.bHasRelativeLocation && !MovementBase.bHasRelativeRotation &&
-			    Settings->bInheritMovementBaseRotationInVelocityDirectionRotationMode)
+			if (LocomotionState.bRotationTowardsLastInputDirectionBlocked)
 			{
-				TargetYawAngle = UE_REAL_TO_FLOAT(TargetYawAngle + MovementBase.DeltaRotation.Yaw);
+				// Rotate to the last target yaw angle, relative to the movement base or not.
+
+				TargetYawAngle = LocomotionState.TargetYawAngle;
+
+				if (MovementBase.bHasRelativeLocation && !MovementBase.bHasRelativeRotation &&
+				    Settings->bInheritMovementBaseRotationInVelocityDirectionRotationMode)
+				{
+					TargetYawAngle = UE_REAL_TO_FLOAT(TargetYawAngle + MovementBase.DeltaRotation.Yaw);
+				}
+			}
+			else
+			{
+				// Rotate to the last velocity direction. Rotation of the movement
+				// base handled in the AAlsCharacter::RefreshLocomotionEarly() function.
+
+				TargetYawAngle = Settings->bRotateTowardsDesiredVelocityInVelocityDirectionRotationMode
+					                 ? DesiredVelocityYawAngle
+					                 : LocomotionState.VelocityYawAngle;
 			}
 
 			static constexpr auto RotationInterpolationSpeed{12.0f};
 			static constexpr auto TargetYawAngleRotationSpeed{800.0f};
+
+			SetRotationExtraSmooth(TargetYawAngle, DeltaTime, RotationInterpolationSpeed, TargetYawAngleRotationSpeed);
+			return;
+		}
+
+		if (RotationMode == AlsRotationModeTags::ViewDirection)
+		{
+			if ((!LocomotionState.bHasInput && LocomotionState.bRotationTowardsLastInputDirectionBlocked) ||
+			    !Settings->bAutoRotateOnAnyInputWhileNotMovingInViewDirectionRotationMode)
+			{
+				RefreshTargetYawAngleUsingLocomotionRotation();
+				return;
+			}
+
+			// Rotate to the last view direction.
+
+			const auto TargetYawAngle{LocomotionState.bHasInput ? ViewState.Rotation.Yaw : LocomotionState.TargetYawAngle};
+
+			const auto RotationInterpolationSpeed{CalculateGroundedMovingRotationInterpolationSpeed()};
+
+			static constexpr auto TargetYawAngleRotationSpeed{500.0f};
 
 			SetRotationExtraSmooth(TargetYawAngle, DeltaTime, RotationInterpolationSpeed, TargetYawAngleRotationSpeed);
 			return;
@@ -1632,8 +1669,11 @@ void AAlsCharacter::RefreshGroundedRotation(const float DeltaTime)
 		return;
 	}
 
-	if (RotationMode == AlsRotationModeTags::ViewDirection)
+	if (RotationMode == AlsRotationModeTags::ViewDirection &&
+	    (LocomotionState.bHasInput || !LocomotionState.bRotationTowardsLastInputDirectionBlocked))
 	{
+		LocomotionState.bRotationTowardsLastInputDirectionBlocked = false;
+
 		float TargetYawAngle;
 
 		if (Gait == AlsGaitTags::Sprinting)
@@ -1735,7 +1775,7 @@ bool AAlsCharacter::ConstrainAimingRotation(FRotator& ActorRotation, const float
 
 	ViewRelativeAngle = UAlsRotation::RemapAngleForCounterClockwiseRotation(ViewRelativeAngle);
 
-	// Secondary constraint. Simply increases the actor's rotation speed. Typically only used when the actor is standing still.
+	// Secondary constraint. Simply increases the actor's rotation speed. Typically only used when the actor is not moving.
 
 	if (bApplySecondaryConstraint)
 	{
@@ -1787,7 +1827,7 @@ float AAlsCharacter::CalculateGroundedMovingRotationInterpolationSpeed() const
 
 	const auto InterpolationSpeed{
 		ALS_ENSURE(IsValid(InterpolationSpeedCurve))
-			? InterpolationSpeedCurve->GetFloatValue(AlsCharacterMovement->GetGaitAmount())
+			? InterpolationSpeedCurve->GetFloatValue(FMath::Max(1.0f, AlsCharacterMovement->GetGaitAmount()))
 			: DefaultInterpolationSpeed
 	};
 
