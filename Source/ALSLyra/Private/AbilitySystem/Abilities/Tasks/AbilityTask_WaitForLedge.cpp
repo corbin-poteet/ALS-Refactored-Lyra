@@ -105,7 +105,7 @@ void UAbilityTask_WaitForLedge::PerformTrace()
 
 	float ForwardTraceAngle;
 	FAlsLocomotionState LocomotionState = AlsCharacter->GetLocomotionState();
-	if (LocomotionState.bHasSpeed)
+	if (LocomotionState.bHasVelocity)
 	{
 		ForwardTraceAngle = LocomotionState.bHasInput
 			                    ? LocomotionState.VelocityYawAngle +
