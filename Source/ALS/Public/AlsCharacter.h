@@ -1,6 +1,6 @@
 #pragma once
 
-#include "GameFramework/Character.h"
+#include "Character/LyraCharacter.h"
 #include "State/AlsLocomotionState.h"
 #include "State/AlsMantlingState.h"
 #include "State/AlsMovementBaseState.h"
@@ -19,7 +19,7 @@ class UAlsAnimationInstance;
 class UAlsMantlingSettings;
 
 UCLASS(AutoExpandCategories = ("Settings|Als Character", "Settings|Als Character|Desired State"))
-class ALS_API AAlsCharacter : public ACharacter
+class ALS_API AAlsCharacter : public ALyraCharacter
 {
 	GENERATED_BODY()
 
