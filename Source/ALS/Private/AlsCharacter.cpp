@@ -29,6 +29,7 @@ AAlsCharacter::AAlsCharacter(const FObjectInitializer& ObjectInitializer) : Supe
 }
 {
 	PrimaryActorTick.bCanEverTick = true;
+	PrimaryActorTick.bStartWithTickEnabled = true;
 
 	bUseControllerRotationYaw = false;
 	bClientCheckEncroachmentOnNetUpdate = true; // Required for bSimGravityDisabled to be updated.
