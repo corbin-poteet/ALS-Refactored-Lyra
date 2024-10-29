@@ -1,3 +1,10 @@
+# Advanced Locomotion System content files
+Content/ALS/*
+Content/ALSCamera/*
+Content/ALSExtras/*
+Content/__ExternalActors__/ALSExtras/*
+Content/__ExternalObjects__/ALSExtras/*
+
 # Visual Studio 2015 user specific files
 .vs/
 
