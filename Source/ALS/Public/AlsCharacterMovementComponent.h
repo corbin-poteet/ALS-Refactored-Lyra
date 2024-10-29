@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Character/LyraCharacterMovementComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Settings/AlsMovementSettings.h"
 #include "AlsCharacterMovementComponent.generated.h"
@@ -71,7 +72,7 @@ public:
 };
 
 UCLASS(ClassGroup = "ALS")
-class ALS_API UAlsCharacterMovementComponent : public UCharacterMovementComponent
+class ALS_API UAlsCharacterMovementComponent : public ULyraCharacterMovementComponent
 {
 	GENERATED_BODY()
 
@@ -128,7 +129,7 @@ public:
 	FAlsPhysicsRotationDelegate OnPhysicsRotation;
 
 public:
-	UAlsCharacterMovementComponent();
+	UAlsCharacterMovementComponent(const FObjectInitializer& ObjectInitializer);
 
 #if WITH_EDITOR
 	virtual bool CanEditChange(const FProperty* Property) const override;
