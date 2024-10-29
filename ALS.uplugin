@@ -4,7 +4,7 @@
 	"VersionName": "4.15",
 	"FriendlyName": "Advanced Locomotion System Refactored",
 	"Description": "Completely reworked and improved С++ version of Advanced Locomotion System V4.",
-	"Category": "Animation",
+	"Category": "Game Features",
 	"CreatedBy": "Sixze",
 	"CreatedByURL": "https://github.com/Sixze",
 	"DocsURL": "https://github.com/Sixze/ALS-Refactored",
@@ -16,6 +16,8 @@
 	"IsBetaVersion": false,
 	"IsExperimentalVersion": false,
 	"Installed": false,
+	"ExplicitlyLoaded": true,
+	"BuiltInInitialFeatureState": "Registered",
 	"Modules": [
 		{
 			"Name": "ALS",
@@ -29,6 +31,11 @@
 		},
 		{
 			"Name": "ALSExtras",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "ALSLyra",
 			"Type": "Runtime",
 			"LoadingPhase": "Default"
 		},
