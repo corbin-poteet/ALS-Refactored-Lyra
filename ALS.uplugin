@@ -63,6 +63,10 @@
 			"Enabled": true
 		},
 		{
+			"Name": "GameplayAbilities",
+			"Enabled": true
+		},
+		{
 			"Name": "GameplayCameras",
 			"Enabled": true
 		},
@@ -72,6 +76,14 @@
 		},
 		{
 			"Name": "Metasound",
+			"Enabled": true
+		},
+		{
+			"Name": "ModularGameplay",
+			"Enabled": true
+		},
+		{
+			"Name": "ModularGameplayActors",
 			"Enabled": true
 		},
 		{
