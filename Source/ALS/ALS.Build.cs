@@ -10,9 +10,10 @@ public class ALS : ModuleRules
 		// CppCompileWarningSettings.UnsafeTypeCastWarningLevel = WarningLevel.Warning;
 		CppCompileWarningSettings.NonInlinedGenCppWarningLevel = WarningLevel.Warning;
 
-		PublicDependencyModuleNames.AddRange([
-			"Core", "CoreUObject", "Engine", "GameplayTags", "AnimGraphRuntime", "RigVM", "ControlRig"
-		]);
+		PublicDependencyModuleNames.AddRange(new[]
+		{
+			"Core", "CoreUObject", "Engine", "GameplayTags", "AnimGraphRuntime", "RigVM", "ControlRig", "LyraGame", "AIModule", "GameplayAbilities", "ModularGameplay", "ModularGameplayActors"
+		});
 
 		PrivateDependencyModuleNames.AddRange([
 			"EngineSettings", "NetCore", "PhysicsCore", "Niagara"

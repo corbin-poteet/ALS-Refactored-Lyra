@@ -10,9 +10,10 @@ public class ALSExtras : ModuleRules
 		// CppCompileWarningSettings.UnsafeTypeCastWarningLevel = WarningLevel.Warning;
 		CppCompileWarningSettings.NonInlinedGenCppWarningLevel = WarningLevel.Warning;
 
-		PublicDependencyModuleNames.AddRange([
-			"Core", "CoreUObject", "Engine", "AIModule", "ALS"
-		]);
+		PublicDependencyModuleNames.AddRange(new[]
+		{
+			"Core", "CoreUObject", "Engine", "AIModule", "ALS", "LyraGame", "AIModule", "GameplayAbilities", "ModularGameplay", "ModularGameplayActors"
+		});
 
 		PrivateDependencyModuleNames.AddRange([
 			"EnhancedInput", "ALSCamera"
