@@ -12,12 +12,12 @@ public class ALSLyra : ModuleRules
 		
 		PublicDependencyModuleNames.AddRange(new[]
 		{
-			"Core", "CoreUObject", "Engine", "AIModule", "ALS"
+			"Core", "CoreUObject", "Engine", "AIModule", "ALS", "LyraGame"
 		});
 		
 		PrivateDependencyModuleNames.AddRange(new[]
 		{
-			"EnhancedInput", "ALSCamera"
+			"EnhancedInput", "ALSCamera", "GameplayAbilities",
 		});
 	}
 }
