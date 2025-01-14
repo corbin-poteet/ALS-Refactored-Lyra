@@ -40,6 +40,11 @@
 			"LoadingPhase": "Default"
 		},
 		{
+			"Name": "ALSShooter",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		},
+		{
 			"Name": "ALSEditor",
 			"Type": "UncookedOnly",
 			"LoadingPhase": "PreDefault"
@@ -92,6 +97,14 @@
 		},
 		{
 			"Name": "PropertyAccessNode",
+			"Enabled": true
+		},
+		{
+			"Name": "ShooterCore",
+			"Enabled": true
+		},
+		{
+			"Name": "LyraExampleContent",
 			"Enabled": true
 		}
 	]
