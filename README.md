@@ -59,6 +59,12 @@ For more information, see the [Releases](https://github.com/Sixze/ALS-Refactored
 1. Clone the repository to your project's `Plugins` folder, or download the latest release and extract it to your project's `Plugins` folder.
 2. Recompile your project.
 
+## Updating From Source
+
+1. Switch to `als-main` branch.
+2. Pull from source.
+3. Rebase `als-lyra` on top of `als-main`.
+
 ## Known Issues & Discussion
 
 - See the [Issues](https://github.com/Sixze/ALS-Refactored/issues) page for list of known issues.
