@@ -29,6 +29,12 @@ Currently supports Unreal 5.4
 2. Merge the `DefaultEngine.ini` and `DefaultInput.ini` files from the plugin's `Config` folder with files from your project's `Config` folder.
 3. Recompile your project.
 
+## Updating From Source
+
+1. Switch to `als-main` branch.
+2. Pull from source.
+3. Rebase `als-lyra` on top of `als-main`.
+
 ## Known Issues & Discussion
 
 - See the [Issues](https://github.com/corbin-poteet/ALS-Refactored-Lyra/issues) page for list of known issues.
