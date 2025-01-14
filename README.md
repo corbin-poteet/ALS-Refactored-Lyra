@@ -15,6 +15,7 @@ The main goal of this plugin is to build on top of ALS-Refactored to allow it to
 - Retargeted all ALS animations to the Unreal 5 Mannequin.
 - Implemented gameplay ability system for all ALS abilities.
 - Added new ALS experience which implements new ALS features through Lyra's modular experience system.
+- Converted UE5Manny ALS animations to use Lyra's context effects system.
 
 </details>
 
