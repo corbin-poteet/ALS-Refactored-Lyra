@@ -6,6 +6,8 @@ Game Feature Plugin version of [Sixze's Refactored Advanced Locomotion System V4
 
 The main goal of this plugin is to build on top of ALS-Refactored to allow it to be easily implemented into a Lyra Framework project, while providing minimal changes to Lyra and ALS-Refactored, to ensure modularity and future compatibility.
 
+Currently supports Unreal 5.4
+
 <details>
 
 <summary><b>Features</b></summary>
