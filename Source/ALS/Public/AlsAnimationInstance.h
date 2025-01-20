@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Animation/AnimInstance.h"
+#include "Animation/LyraAnimInstance.h"
 #include "Engine/World.h"
 #include "State/AlsControlRigInput.h"
 #include "State/AlsCrouchingState.h"
@@ -28,7 +29,9 @@ class UAlsLinkedAnimationInstance;
 class AAlsCharacter;
 
 UCLASS()
-class ALS_API UAlsAnimationInstance : public UAnimInstance
+// ProjectOverrides start: Re-parent to ULyraAnimInstance.
+class ALS_API UAlsAnimationInstance : public ULyraAnimInstance
+// ProjectOverrides end
 {
 	GENERATED_BODY()
 
