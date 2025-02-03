@@ -27,7 +27,13 @@ Currently supports Unreal 5.4
 
 1. Clone the repository to your project's `Plugins/GameFeatures` folder, or download the latest release and extract it to your project's `Plugins/GameFeatures` folder.
 2. Merge the `DefaultEngine.ini` and `DefaultInput.ini` files from the plugin's `Config` folder with files from your project's `Config` folder.
-3. Recompile your project.
+3. Export `ULyraAnimInstance` by adding `LYRAGAME_API` to the header file.
+    ```
+       class LYRAGAME_API ULyraAnimInstance : public UAnimInstance
+    ```
+5. Recompile your project and start the editor.
+6. Navigate to `/All/Game/Characters/Heroes/Mannequin/Meshes` in the server browser. Right-click `SK_Mannequin` -> Scripted Asset Actions -> Setup Als Skeleton
+7. Done
 
 ## Updating From Source
 
