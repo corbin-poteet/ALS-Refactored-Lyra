@@ -25,6 +25,8 @@ Currently supports Unreal 5.4
 
 ## Quick Start
 
+Install tutorial => https://youtu.be/EQnVff_jGI0?si=-mv1S1w3t_2AMYZF
+
 1. Clone the repository to your project's `Plugins/GameFeatures` folder, or download the latest release and extract it to your project's `Plugins/GameFeatures` folder.
 2. Rename the folder to `ALS`.
 3. Merge the `DefaultEngine.ini` and `DefaultInput.ini` files from the plugin's `Config` folder with files from your project's `Config` folder.
