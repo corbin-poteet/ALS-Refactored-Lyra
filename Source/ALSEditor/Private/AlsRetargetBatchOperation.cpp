@@ -27,8 +27,54 @@
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Retargeter/RetargetOps/SpeedPlantingOp.h"
 #include "Rig/IKRigDefinition.h"
+#include "AnimationBlueprintLibrary.h"
+#include "AnimGraphNode_LinkedAnimGraph.h"
+#include "Animation/AnimBlueprintGeneratedClass.h"
 
 #define LOCTEXT_NAMESPACE "RetargetBatchOperation"
+
+void UAlsRetargetBatchOperation::GatherAllReferencedAssets(UAnimBlueprint* AnimBlueprint, TArray<UAnimationAsset*>& OutAnimationAssets)
+{
+	if (!AnimBlueprint)
+	{
+		return;
+	}
+
+	// Use the original method as a baseline
+	GetAllAnimationSequencesReferredInBlueprint(AnimBlueprint, OutAnimationAssets);
+
+	// Additionally, find all linked animation graph nodes and get their referenced blueprints
+	TArray<UAnimGraphNode_Base*> LinkedGraphNodes;
+	UAnimationBlueprintLibrary::GetNodesOfClass(AnimBlueprint, UAnimGraphNode_LinkedAnimGraph::StaticClass(), LinkedGraphNodes, true);
+
+	for (UAnimGraphNode_Base* GraphNode : LinkedGraphNodes)
+	{
+		if (const UAnimGraphNode_LinkedAnimGraph* LinkedAnimGraphNode = Cast<UAnimGraphNode_LinkedAnimGraph>(GraphNode))
+		{
+			// Get the instance class from the node
+			if (TSubclassOf<UAnimInstance> InstanceClass = LinkedAnimGraphNode->Node.InstanceClass)
+			{
+				// Find the animation blueprint that corresponds to this class
+				UAnimBlueprint* LinkedAnimBP = nullptr;
+
+				// Check if this is an animation blueprint generated class
+				if (const UAnimBlueprintGeneratedClass* AnimBPClass = Cast<UAnimBlueprintGeneratedClass>(*InstanceClass))
+				{
+					LinkedAnimBP = Cast<UAnimBlueprint>(AnimBPClass->ClassGeneratedBy);
+				}
+
+				if (LinkedAnimBP && LinkedAnimBP != AnimBlueprint) // Avoid infinite recursion
+				{
+					// Add the linked blueprint to our list for retargeting
+					AnimBlueprintsToRetarget.AddUnique(LinkedAnimBP);
+
+					// Recursively gather assets from the linked blueprint
+					GatherAllReferencedAssets(LinkedAnimBP, OutAnimationAssets);
+				}
+			}
+		}
+	}
+}
 
 int32 UAlsRetargetBatchOperation::GenerateAssetLists(const FAlsRetargetBatchOperationContext& Context)
 {
@@ -82,11 +128,13 @@ int32 UAlsRetargetBatchOperation::GenerateAssetLists(const FAlsRetargetBatchOper
 
 	if (Context.bIncludeReferencedAssets)
 	{
-		// Grab assets from the blueprint.
+		// Grab assets from the blueprint using enhanced gathering that includes linked animation graphs.
 		// Do this first as it can add complex assets to the retarget array which will need to be processed next.
-		for (UAnimBlueprint* AnimBlueprint : AnimBlueprintsToRetarget)
+		// Make a copy of the array to avoid "Array has changed during ranged-for iteration" error
+		TArray<UAnimBlueprint*> AnimBlueprintsToProcess = AnimBlueprintsToRetarget;
+		for (UAnimBlueprint* AnimBlueprint : AnimBlueprintsToProcess)
 		{
-			GetAllAnimationSequencesReferredInBlueprint(AnimBlueprint, AnimationAssetsToRetarget);
+			GatherAllReferencedAssets(AnimBlueprint, AnimationAssetsToRetarget);
 		}
 
 		int32 AssetIndex = 0;

@@ -137,6 +137,9 @@ private:
 	// @return	Number of assets that need retargeting.
 	int32 GenerateAssetLists(const FAlsRetargetBatchOperationContext& Context);
 
+	// Enhanced asset reference gathering that includes linked animation graphs
+	void GatherAllReferencedAssets(UAnimBlueprint* AnimBlueprint, TArray<UAnimationAsset*>& OutAnimationAssets);
+
 	// Duplicate all the assets to retarget
 	void DuplicateRetargetAssets(const FAlsRetargetBatchOperationContext& Context, FScopedSlowTask& Progress);
 
