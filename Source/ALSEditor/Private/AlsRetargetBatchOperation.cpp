@@ -284,7 +284,7 @@ void UAlsRetargetBatchOperation::RetargetAssets(
 	{
 		for (FAdditiveRetargetSettings SettingsToRestore : SettingsToRestoreAfterRetarget)
 		{
-			SettingsToRestore.RestoreOnAsset();
+			SettingsToRestore.RestoreOnAsset(RemappedAnimAssets);
 		}
 	}
 
@@ -802,7 +802,7 @@ void FAdditiveRetargetSettings::PrepareForRetarget(UAnimSequence* InSequenceAsse
 	SequenceAsset->RefPoseSeq = nullptr;
 }
 
-void FAdditiveRetargetSettings::RestoreOnAsset() const
+void FAdditiveRetargetSettings::RestoreOnAsset(const TMap<UAnimationAsset*, UAnimationAsset*>& RemappedAnimAssets) const
 {
 	if (!ensure(SequenceAsset))
 	{
@@ -812,7 +812,24 @@ void FAdditiveRetargetSettings::RestoreOnAsset() const
 	SequenceAsset->AdditiveAnimType = AdditiveAnimType;
 	SequenceAsset->RefPoseType = RefPoseType;
 	SequenceAsset->RefFrameIndex = RefFrameIndex;
-	SequenceAsset->RefPoseSeq = RefPoseSeq;
+
+	// If the original RefPoseSeq was retargeted, use the retargeted version instead of the original
+	if (RefPoseSeq)
+	{
+		if (UAnimationAsset* const* RetargetedRefPose = RemappedAnimAssets.Find(RefPoseSeq))
+		{
+			SequenceAsset->RefPoseSeq = Cast<UAnimSequence>(*RetargetedRefPose);
+		}
+		else
+		{
+			// Fallback to original if not found in remapped assets (shouldn't happen in normal cases)
+			SequenceAsset->RefPoseSeq = RefPoseSeq;
+		}
+	}
+	else
+	{
+		SequenceAsset->RefPoseSeq = nullptr;
+	}
 }
 
 TArray<FAssetData> UAlsRetargetBatchOperation::DuplicateAndRetarget(

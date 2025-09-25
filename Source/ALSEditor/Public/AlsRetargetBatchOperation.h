@@ -28,7 +28,7 @@ struct FAdditiveRetargetSettings
 	TObjectPtr<UAnimSequence> RefPoseSeq;
 
 	void PrepareForRetarget(UAnimSequence* InSequenceAsset);
-	void RestoreOnAsset() const;
+	void RestoreOnAsset(const TMap<UAnimationAsset*, UAnimationAsset*>& RemappedAnimAssets) const;
 };
 
 /// Data needed to run a batch "duplicate and retarget" operation on a set of animation assets
