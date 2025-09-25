@@ -93,6 +93,10 @@
 		{
 			"Name": "PropertyAccessNode",
 			"Enabled": true
+		},
+		{
+			"Name": "IKRig",
+			"Enabled": true
 		}
 	]
 }

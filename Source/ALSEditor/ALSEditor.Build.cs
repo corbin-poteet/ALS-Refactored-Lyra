@@ -21,7 +21,7 @@ public class ALSEditor : ModuleRules
 			]);
 
 			PrivateDependencyModuleNames.AddRange([
-				"BlueprintGraph"
+				"BlueprintGraph", "IKRig", "UnrealEd", "Slate"
 			]);
 		}
 	}
