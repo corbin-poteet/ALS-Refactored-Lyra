@@ -152,6 +152,9 @@ private:
 	// Copy/remap curves on all the duplicates
 	void RemapCurves(const FAlsRetargetBatchOperationContext& Context, FScopedSlowTask& Progress);
 
+	// Replace linked animation graph references in retargeted blueprints
+	void ReplaceLinkedAnimGraphReferences(const FAlsRetargetBatchOperationContext& Context, FScopedSlowTask& Progress);
+
 	// Replace existing assets (optional)
 	void OverwriteExistingAssets(const FAlsRetargetBatchOperationContext& Context, FScopedSlowTask& Progress);
 

@@ -350,11 +350,9 @@ void UAlsRetargetBatchOperation::RetargetAssets(
 		AnimBlueprint->SetPreviewMesh(Context.TargetMesh);
 
 		// if they have parent blueprint, make sure to re-link to the new one also
-		UAnimBlueprint* CurrentParentBP = Cast<UAnimBlueprint>(AnimBlueprint->ParentClass->ClassGeneratedBy);
-		if (CurrentParentBP)
+		if (const UAnimBlueprint* CurrentParentBP = Cast<UAnimBlueprint>(AnimBlueprint->ParentClass->ClassGeneratedBy))
 		{
-			UAnimBlueprint* const * ParentBP = DuplicatedBlueprints.Find(CurrentParentBP);
-			if (ParentBP)
+			if (UAnimBlueprint* const* ParentBP = DuplicatedBlueprints.Find(CurrentParentBP))
 			{
 				AnimBlueprint->ParentClass = (*ParentBP)->GeneratedClass;
 			}
@@ -363,6 +361,18 @@ void UAlsRetargetBatchOperation::RetargetAssets(
 		if(RemappedAnimAssets.Num() > 0)
 		{
 			ReplaceReferredAnimationsInBlueprint(AnimBlueprint, RemappedAnimAssets);
+		}
+	}
+
+	// Replace linked animation graph references with retargeted versions
+	ReplaceLinkedAnimGraphReferences(Context, Progress);
+
+	// Compile all blueprints after all references have been updated
+	for (UAnimBlueprint* AnimBlueprint : AnimBlueprintsToRetarget)
+	{
+		if (Progress.ShouldCancel())
+		{
+			return;
 		}
 
 		FBlueprintEditorUtils::RefreshAllNodes(AnimBlueprint);
@@ -684,6 +694,73 @@ void UAlsRetargetBatchOperation::RemapCurves(const FAlsRetargetBatchOperationCon
 		}
 
 		TargetSeqController.CloseBracket(bShouldTransact);
+	}
+}
+
+void UAlsRetargetBatchOperation::ReplaceLinkedAnimGraphReferences(const FAlsRetargetBatchOperationContext& Context, FScopedSlowTask& Progress)
+{
+	// Update progress bar
+	Progress.EnterProgressFrame(1.f, FText(LOCTEXT("ReplacingLinkedAnimGraphs", "Replacing linked animation graph references...")));
+
+	// For each retargeted animation blueprint, update its linked animation graph nodes to reference the new retargeted blueprints
+	for (TPair<UAnimBlueprint*, UAnimBlueprint*>& BlueprintPair : DuplicatedBlueprints)
+	{
+		UAnimBlueprint* TargetBlueprint = BlueprintPair.Value;
+		if (!TargetBlueprint)
+		{
+			continue;
+		}
+
+		if (Progress.ShouldCancel())
+		{
+			return;
+		}
+
+		// Find all linked animation graph nodes in this blueprint
+		TArray<UAnimGraphNode_Base*> LinkedGraphNodes;
+		UAnimationBlueprintLibrary::GetNodesOfClass(TargetBlueprint, UAnimGraphNode_LinkedAnimGraph::StaticClass(), LinkedGraphNodes, true);
+
+		bool bModifiedBlueprint = false;
+		for (UAnimGraphNode_Base* GraphNode : LinkedGraphNodes)
+		{
+			if (UAnimGraphNode_LinkedAnimGraph* LinkedAnimGraphNode = Cast<UAnimGraphNode_LinkedAnimGraph>(GraphNode))
+			{
+				// Get the current instance class from the node
+				TSubclassOf<UAnimInstance> CurrentInstanceClass = LinkedAnimGraphNode->Node.InstanceClass;
+				if (CurrentInstanceClass)
+				{
+					// Find the original animation blueprint that corresponds to this class
+					UAnimBlueprint* OriginalLinkedAnimBP = nullptr;
+					if (const UAnimBlueprintGeneratedClass* AnimBPClass = Cast<UAnimBlueprintGeneratedClass>(*CurrentInstanceClass))
+					{
+						OriginalLinkedAnimBP = Cast<UAnimBlueprint>(AnimBPClass->ClassGeneratedBy);
+					}
+
+					// Check if we have a retargeted version of this blueprint
+					if (OriginalLinkedAnimBP)
+					{
+						UAnimBlueprint* const* NewLinkedAnimBP = DuplicatedBlueprints.Find(OriginalLinkedAnimBP);
+						if (NewLinkedAnimBP && *NewLinkedAnimBP)
+						{
+							// Update the node to reference the new retargeted blueprint
+							LinkedAnimGraphNode->Node.InstanceClass = (*NewLinkedAnimBP)->GeneratedClass;
+							bModifiedBlueprint = true;
+
+							UE_LOG(LogTemp, Log, TEXT("Replaced linked animation graph reference in %s: %s -> %s"),
+								*TargetBlueprint->GetName(),
+								*OriginalLinkedAnimBP->GetName(),
+								*(*NewLinkedAnimBP)->GetName());
+						}
+					}
+				}
+			}
+		}
+
+		// If we modified any linked animation graph references, mark the blueprint for recompilation
+		if (bModifiedBlueprint)
+		{
+			TargetBlueprint->MarkPackageDirty();
+		}
 	}
 }
 
