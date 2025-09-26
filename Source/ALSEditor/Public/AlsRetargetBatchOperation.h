@@ -70,6 +70,11 @@ public:
 	// NOTE: results may not be WYSIWYG with the editor, but the behavior should remain intact.
 	bool bRetainAdditiveFlags = true;
 
+	// Directory mapping for recreating original file structures in new locations
+	// Key: Source directory path (e.g., "/ALS/ALS/Character")
+	// Value: Destination directory path (e.g., "/ALS/ALSLyra/Characters/Heroes/Mannequin")
+	TMap<FString, FString> DirectoryMappings;
+
 	// Reset all data (called when window re-opened
 	void Reset()
 	{
@@ -112,6 +117,7 @@ public:
 	 * @param Suffix A string to add at the end of the new file name
 	 * @param Prefix A string to add to the start of the new file name
 	 * @param bRemapReferencedAssets Whether to remap existing references in the animation assets
+	 * @param DirectoryMappings Map of source to destination directories for recreating file structures
 	 *
 	 * Return: list of new animation files created.*/
 	UFUNCTION(BlueprintCallable, Category=IKBatchRetarget)
@@ -120,6 +126,7 @@ public:
 		USkeletalMesh* SourceMesh,
 		USkeletalMesh* TargetMesh,
 		UIKRetargeter* IKRetargetAsset,
+		const TMap<FString, FString>& DirectoryMappings,
 		const FString& Search = "",
 		const FString& Replace = "",
 		const FString& Prefix = "",
@@ -139,6 +146,9 @@ private:
 
 	// Enhanced asset reference gathering that includes linked animation graphs
 	void GatherAllReferencedAssets(UAnimBlueprint* AnimBlueprint, TArray<UAnimationAsset*>& OutAnimationAssets);
+
+	// Calculate the target directory path based on directory mappings, preserving subdirectory structure
+	FString CalculateTargetDirectoryPath(const FString& SourceAssetPath, const TMap<FString, FString>& DirectoryMappings) const;
 
 	// Duplicate all the assets to retarget
 	void DuplicateRetargetAssets(const FAlsRetargetBatchOperationContext& Context, FScopedSlowTask& Progress);

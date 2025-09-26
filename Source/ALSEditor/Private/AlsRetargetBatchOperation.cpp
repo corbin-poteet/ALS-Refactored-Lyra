@@ -76,6 +76,57 @@ void UAlsRetargetBatchOperation::GatherAllReferencedAssets(UAnimBlueprint* AnimB
 	}
 }
 
+FString UAlsRetargetBatchOperation::CalculateTargetDirectoryPath(const FString& SourceAssetPath, const TMap<FString, FString>& DirectoryMappings) const
+{
+	// Get the directory path from the asset path (remove the asset name)
+	FString SourceDirectory = FPackageName::GetLongPackagePath(SourceAssetPath);
+
+	// Find the best matching source directory mapping
+	FString BestMatchSource;
+	FString BestMatchDestination;
+	int32 BestMatchLength = 0;
+
+	for (const auto& Mapping : DirectoryMappings)
+	{
+		const FString& MappingSource = Mapping.Key;
+		const FString& MappingDestination = Mapping.Value;
+
+		// Check if the source directory starts with this mapping source
+		if (SourceDirectory.StartsWith(MappingSource) && MappingSource.Len() > BestMatchLength)
+		{
+			BestMatchSource = MappingSource;
+			BestMatchDestination = MappingDestination;
+			BestMatchLength = MappingSource.Len();
+		}
+	}
+
+	// If we found a matching mapping, calculate the new path
+	if (!BestMatchSource.IsEmpty())
+	{
+		// Get the relative path within the source directory
+		FString RelativePath;
+		if (SourceDirectory.Len() > BestMatchSource.Len())
+		{
+			// Remove the best match source from the beginning and get the remainder
+			RelativePath = SourceDirectory.RightChop(BestMatchSource.Len());
+			// Ensure it starts with a slash
+			if (!RelativePath.StartsWith(TEXT("/")))
+			{
+				RelativePath = TEXT("/") + RelativePath;
+			}
+		}
+
+		// Combine destination with relative path
+		FString NewDirectory = BestMatchDestination + RelativePath;
+
+		UE_LOG(LogTemp, Log, TEXT("Directory mapping: %s -> %s"), *SourceDirectory, *NewDirectory);
+		return NewDirectory;
+	}
+
+	// No mapping found, return original directory
+	return SourceDirectory;
+}
+
 int32 UAlsRetargetBatchOperation::GenerateAssetLists(const FAlsRetargetBatchOperationContext& Context)
 {
 	// re-generate lists of selected and referenced assets
@@ -176,10 +227,17 @@ void UAlsRetargetBatchOperation::DuplicateRetargetAssets(
 		FString AssetName = Asset->GetName();
 		Progress.EnterProgressFrame(1.f, FText::Format(LOCTEXT("DuplicatingAnimation", "Duplicating animation: {0}"), FText::FromString(AssetName)));
 
-		// if user wants to export files to the same location as the source, then replace the FolderPath in the duplication rule
+		// Calculate target directory path based on directory mappings
 		FNameDuplicationRule NameRule = Context.NameRule;
-		if (Context.bUseSourcePath)
+		if (Context.DirectoryMappings.Num() > 0)
 		{
+			// Use directory mappings to determine new location
+			FString TargetDirectory = CalculateTargetDirectoryPath(Asset->GetPathName(), Context.DirectoryMappings);
+			NameRule.FolderPath = TargetDirectory / TEXT("");
+		}
+		else if (Context.bUseSourcePath)
+		{
+			// Fallback to original behavior if no mappings provided
 			NameRule.FolderPath = FPackageName::GetLongPackagePath(Asset->GetPathName()) / TEXT("");
 		}
 
@@ -196,10 +254,17 @@ void UAlsRetargetBatchOperation::DuplicateRetargetAssets(
 		FString AssetName = Asset->GetName();
 		Progress.EnterProgressFrame(1.f, FText::Format(LOCTEXT("DuplicatingBlueprint", "Duplicating blueprint: {0}"), FText::FromString(AssetName)));
 
-		// if user wants to export files to the same location as the source, then replace the FolderPath in the duplication rule
+		// Calculate target directory path based on directory mappings
 		FNameDuplicationRule NameRule = Context.NameRule;
-		if (Context.bUseSourcePath)
+		if (Context.DirectoryMappings.Num() > 0)
 		{
+			// Use directory mappings to determine new location
+			FString TargetDirectory = CalculateTargetDirectoryPath(Asset->GetPathName(), Context.DirectoryMappings);
+			NameRule.FolderPath = TargetDirectory / TEXT("");
+		}
+		else if (Context.bUseSourcePath)
+		{
+			// Fallback to original behavior if no mappings provided
 			NameRule.FolderPath = FPackageName::GetLongPackagePath(Asset->GetPathName()) / TEXT("");
 		}
 
@@ -962,11 +1027,13 @@ TArray<FAssetData> UAlsRetargetBatchOperation::DuplicateAndRetarget(
 	USkeletalMesh* SourceMesh,
 	USkeletalMesh* TargetMesh,
 	UIKRetargeter* IKRetargetAsset,
+	const TMap<FString, FString>& DirectoryMappings,
 	const FString& Search,
 	const FString& Replace,
 	const FString& Prefix,
 	const FString& Suffix,
-	const bool bIncludeReferencedAssets)
+	const bool bIncludeReferencedAssets
+	)
 {
 	// fill the context with all the data needed to run a batch retarget
 	FAlsRetargetBatchOperationContext Context;
@@ -985,6 +1052,7 @@ TArray<FAssetData> UAlsRetargetBatchOperation::DuplicateAndRetarget(
 	Context.NameRule.ReplaceFrom = Search;
 	Context.NameRule.ReplaceTo = Replace;
 	Context.bIncludeReferencedAssets = bIncludeReferencedAssets;
+	Context.DirectoryMappings = DirectoryMappings;
 
 	// actually run the batch operation
 	UAlsRetargetBatchOperation* BatchOperation = NewObject<UAlsRetargetBatchOperation>();
