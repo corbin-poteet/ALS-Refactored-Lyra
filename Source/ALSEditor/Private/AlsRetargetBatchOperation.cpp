@@ -29,6 +29,7 @@
 #include "Rig/IKRigDefinition.h"
 #include "AnimationBlueprintLibrary.h"
 #include "AnimGraphNode_LinkedAnimGraph.h"
+#include "AnimGraphNode_LinkedAnimLayer.h"
 #include "Animation/AnimBlueprintGeneratedClass.h"
 
 #define LOCTEXT_NAMESPACE "RetargetBatchOperation"
@@ -47,12 +48,46 @@ void UAlsRetargetBatchOperation::GatherAllReferencedAssets(UAnimBlueprint* AnimB
 	TArray<UAnimGraphNode_Base*> LinkedGraphNodes;
 	UAnimationBlueprintLibrary::GetNodesOfClass(AnimBlueprint, UAnimGraphNode_LinkedAnimGraph::StaticClass(), LinkedGraphNodes, true);
 
+	// Also find all linked animation layer nodes
+	TArray<UAnimGraphNode_Base*> LinkedLayerNodes;
+	UAnimationBlueprintLibrary::GetNodesOfClass(AnimBlueprint, UAnimGraphNode_LinkedAnimLayer::StaticClass(), LinkedLayerNodes, true);
+
+	// Process linked animation graph nodes
 	for (UAnimGraphNode_Base* GraphNode : LinkedGraphNodes)
 	{
 		if (const UAnimGraphNode_LinkedAnimGraph* LinkedAnimGraphNode = Cast<UAnimGraphNode_LinkedAnimGraph>(GraphNode))
 		{
 			// Get the instance class from the node
 			if (TSubclassOf<UAnimInstance> InstanceClass = LinkedAnimGraphNode->Node.InstanceClass)
+			{
+				// Find the animation blueprint that corresponds to this class
+				UAnimBlueprint* LinkedAnimBP = nullptr;
+
+				// Check if this is an animation blueprint generated class
+				if (const UAnimBlueprintGeneratedClass* AnimBPClass = Cast<UAnimBlueprintGeneratedClass>(*InstanceClass))
+				{
+					LinkedAnimBP = Cast<UAnimBlueprint>(AnimBPClass->ClassGeneratedBy);
+				}
+
+				if (LinkedAnimBP && LinkedAnimBP != AnimBlueprint) // Avoid infinite recursion
+				{
+					// Add the linked blueprint to our list for retargeting
+					AnimBlueprintsToRetarget.AddUnique(LinkedAnimBP);
+
+					// Recursively gather assets from the linked blueprint
+					GatherAllReferencedAssets(LinkedAnimBP, OutAnimationAssets);
+				}
+			}
+		}
+	}
+
+	// Process linked animation layer nodes
+	for (UAnimGraphNode_Base* GraphNode : LinkedLayerNodes)
+	{
+		if (const UAnimGraphNode_LinkedAnimLayer* LinkedAnimLayerNode = Cast<UAnimGraphNode_LinkedAnimLayer>(GraphNode))
+		{
+			// Get the instance class from the node (inherited from FAnimNode_LinkedAnimGraph)
+			if (TSubclassOf<UAnimInstance> InstanceClass = LinkedAnimLayerNode->Node.InstanceClass)
 			{
 				// Find the animation blueprint that corresponds to this class
 				UAnimBlueprint* LinkedAnimBP = nullptr;
@@ -765,9 +800,9 @@ void UAlsRetargetBatchOperation::RemapCurves(const FAlsRetargetBatchOperationCon
 void UAlsRetargetBatchOperation::ReplaceLinkedAnimGraphReferences(const FAlsRetargetBatchOperationContext& Context, FScopedSlowTask& Progress)
 {
 	// Update progress bar
-	Progress.EnterProgressFrame(1.f, FText(LOCTEXT("ReplacingLinkedAnimGraphs", "Replacing linked animation graph references...")));
+	Progress.EnterProgressFrame(1.f, FText(LOCTEXT("ReplacingLinkedAnimGraphs", "Replacing linked animation graph and layer references...")));
 
-	// For each retargeted animation blueprint, update its linked animation graph nodes to reference the new retargeted blueprints
+	// For each retargeted animation blueprint, update its linked animation graph and layer nodes to reference the new retargeted blueprints
 	for (TPair<UAnimBlueprint*, UAnimBlueprint*>& BlueprintPair : DuplicatedBlueprints)
 	{
 		UAnimBlueprint* TargetBlueprint = BlueprintPair.Value;
@@ -785,7 +820,13 @@ void UAlsRetargetBatchOperation::ReplaceLinkedAnimGraphReferences(const FAlsReta
 		TArray<UAnimGraphNode_Base*> LinkedGraphNodes;
 		UAnimationBlueprintLibrary::GetNodesOfClass(TargetBlueprint, UAnimGraphNode_LinkedAnimGraph::StaticClass(), LinkedGraphNodes, true);
 
+		// Also find all linked animation layer nodes
+		TArray<UAnimGraphNode_Base*> LinkedLayerNodes;
+		UAnimationBlueprintLibrary::GetNodesOfClass(TargetBlueprint, UAnimGraphNode_LinkedAnimLayer::StaticClass(), LinkedLayerNodes, true);
+
 		bool bModifiedBlueprint = false;
+
+		// Process linked animation graph nodes
 		for (UAnimGraphNode_Base* GraphNode : LinkedGraphNodes)
 		{
 			if (UAnimGraphNode_LinkedAnimGraph* LinkedAnimGraphNode = Cast<UAnimGraphNode_LinkedAnimGraph>(GraphNode))
@@ -811,9 +852,9 @@ void UAlsRetargetBatchOperation::ReplaceLinkedAnimGraphReferences(const FAlsReta
 							LinkedAnimGraphNode->Node.InstanceClass = (*NewLinkedAnimBP)->GeneratedClass;
 							bModifiedBlueprint = true;
 
-							UE_LOG(LogTemp, Log, TEXT("Replaced linked animation graph reference in %s: %s -> %s"),
-								*TargetBlueprint->GetName(),
-								*OriginalLinkedAnimBP->GetName(),
+							UE_LOG(LogTemp, Log, TEXT("Replaced linked animation graph reference in %s: %s -> %s"), 
+								*TargetBlueprint->GetName(), 
+								*OriginalLinkedAnimBP->GetName(), 
 								*(*NewLinkedAnimBP)->GetName());
 						}
 					}
@@ -821,15 +862,50 @@ void UAlsRetargetBatchOperation::ReplaceLinkedAnimGraphReferences(const FAlsReta
 			}
 		}
 
-		// If we modified any linked animation graph references, mark the blueprint for recompilation
+		// Process linked animation layer nodes
+		for (UAnimGraphNode_Base* GraphNode : LinkedLayerNodes)
+		{
+			if (UAnimGraphNode_LinkedAnimLayer* LinkedAnimLayerNode = Cast<UAnimGraphNode_LinkedAnimLayer>(GraphNode))
+			{
+				// Get the current instance class from the node (inherited from FAnimNode_LinkedAnimGraph)
+				TSubclassOf<UAnimInstance> CurrentInstanceClass = LinkedAnimLayerNode->Node.InstanceClass;
+				if (CurrentInstanceClass)
+				{
+					// Find the original animation blueprint that corresponds to this class
+					UAnimBlueprint* OriginalLinkedAnimBP = nullptr;
+					if (const UAnimBlueprintGeneratedClass* AnimBPClass = Cast<UAnimBlueprintGeneratedClass>(*CurrentInstanceClass))
+					{
+						OriginalLinkedAnimBP = Cast<UAnimBlueprint>(AnimBPClass->ClassGeneratedBy);
+					}
+
+					// Check if we have a retargeted version of this blueprint
+					if (OriginalLinkedAnimBP)
+					{
+						UAnimBlueprint* const* NewLinkedAnimBP = DuplicatedBlueprints.Find(OriginalLinkedAnimBP);
+						if (NewLinkedAnimBP && *NewLinkedAnimBP)
+						{
+							// Update the node to reference the new retargeted blueprint (same as LinkedAnimGraph)
+							LinkedAnimLayerNode->Node.InstanceClass = (*NewLinkedAnimBP)->GeneratedClass;
+							bModifiedBlueprint = true;
+
+							UE_LOG(LogTemp, Log, TEXT("Replaced linked animation layer reference in %s: %s -> %s (Layer: %s)"), 
+								*TargetBlueprint->GetName(), 
+								*OriginalLinkedAnimBP->GetName(), 
+								*(*NewLinkedAnimBP)->GetName(), 
+								*LinkedAnimLayerNode->Node.Layer.ToString());
+						}
+					}
+				}
+			}
+		}
+
+		// If we modified any linked animation graph or layer references, mark the blueprint for recompilation
 		if (bModifiedBlueprint)
 		{
 			TargetBlueprint->MarkPackageDirty();
 		}
 	}
-}
-
-void UAlsRetargetBatchOperation::OverwriteExistingAssets(const FAlsRetargetBatchOperationContext& Context, FScopedSlowTask& Progress)
+}void UAlsRetargetBatchOperation::OverwriteExistingAssets(const FAlsRetargetBatchOperationContext& Context, FScopedSlowTask& Progress)
 {
 	if (!Context.bOverwriteExistingFiles)
 	{

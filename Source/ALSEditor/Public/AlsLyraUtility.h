@@ -18,6 +18,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "ALS|Lyra")
 	static void GetAllAssetsOfClass(const FString Directory, const TSubclassOf<UObject> AssetClass, TArray<FAssetData>& OutAssets);
 
-
+	UFUNCTION(BlueprintCallable, Category = "ALS|Lyra")
+	static void SetAnimMontageBlendOutSettings(UAnimMontage* Montage, EAlphaBlendOption BlendOutOption, float BlendOutTime, float BlendOutTriggerTime);
 
 };

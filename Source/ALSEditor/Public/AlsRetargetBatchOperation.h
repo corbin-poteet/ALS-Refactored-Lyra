@@ -58,7 +58,7 @@ public:
 
 	// Any files with the same name will be overwritten instead of creating a new file with a numeric suffix.
 	// This is useful when iterating on a batch process.
-	bool bOverwriteExistingFiles = false;
+	bool bOverwriteExistingFiles = true;
 
 	// Duplicates and retargets any animation assets referenced by the input assets. For example, sequences in an animation blueprint or blendspace.
 	bool bIncludeReferencedAssets = true;

@@ -16,3 +16,10 @@ void UAlsLyraUtility::GetAllAssetsOfClass(const FString Directory, const TSubcla
 	const IAssetRegistry& AssetRegistry = IAssetRegistry::GetChecked();
 	AssetRegistry.GetAssets(Filter, OutAssets);
 }
+
+void UAlsLyraUtility::SetAnimMontageBlendOutSettings(UAnimMontage* Montage, const EAlphaBlendOption BlendOutOption, const float BlendOutTime, const float BlendOutTriggerTime)
+{
+	Montage->BlendOut.SetBlendOption(BlendOutOption);
+	Montage->BlendOut.SetBlendTime(BlendOutTime);
+	Montage->BlendOutTriggerTime = BlendOutTriggerTime;
+}
