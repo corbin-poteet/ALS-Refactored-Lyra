@@ -5,6 +5,9 @@ Content/ALSExtras/*
 Content/__ExternalActors__/ALSExtras/*
 Content/__ExternalObjects__/ALSExtras/*
 
+# ALS Lyra refactoring test directory
+/Content/ALSLyra/Characters/Heroes/TestMannequin
+
 # Visual Studio 2015 user specific files
 .vs/
 
