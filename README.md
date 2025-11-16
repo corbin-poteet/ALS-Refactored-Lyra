@@ -6,7 +6,7 @@ Completely reworked and improved С++ version of [Advanced Locomotion System V4]
 
 The main goal of this ALS version is a complete and high-quality refactoring of all aspects of the plugin to make it easier to understand, flexible, reliable (especially in network multiplayer), performant, and simply more enjoyable to work with.
 
-Currently supports Unreal 5.4
+Currently supports Unreal 5.6
 
 <details>
 
