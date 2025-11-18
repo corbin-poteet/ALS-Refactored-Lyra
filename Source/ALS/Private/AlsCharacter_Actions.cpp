@@ -121,7 +121,7 @@ void AAlsCharacter::RefreshRollingPhysics(const float DeltaTime)
 
 	auto TargetRotation{GetCharacterMovement()->UpdatedComponent->GetComponentRotation()};
 
-	if (Settings->Rolling.RotationInterpolationSpeed <= 0.0f)
+	if (Settings->Rolling.RotationInterpolationHalfLife <= 0.0f)
 	{
 		TargetRotation.Yaw = RollingState.TargetYawAngle;
 
@@ -129,9 +129,9 @@ void AAlsCharacter::RefreshRollingPhysics(const float DeltaTime)
 	}
 	else
 	{
-		TargetRotation.Yaw = UAlsRotation::ExponentialDecayAngle(UE_REAL_TO_FLOAT(FMath::UnwindDegrees(TargetRotation.Yaw)),
-		                                                         RollingState.TargetYawAngle, DeltaTime,
-		                                                         Settings->Rolling.RotationInterpolationSpeed);
+		TargetRotation.Yaw = UAlsRotation::DamperExactAngle(UE_REAL_TO_FLOAT(FMath::UnwindDegrees(TargetRotation.Yaw)),
+		                                                    RollingState.TargetYawAngle, DeltaTime,
+		                                                    Settings->Rolling.RotationInterpolationHalfLife);
 
 		GetCharacterMovement()->MoveUpdatedComponent(FVector::ZeroVector, TargetRotation, false);
 	}
@@ -410,16 +410,16 @@ bool AAlsCharacter::StartMantling(const FAlsMantlingTraceSettings& TraceSettings
 	if (MovementBaseUtility::UseRelativeLocation(TargetPrimitive))
 	{
 		const auto TargetRelativeTransform{
-			TargetPrimitive->GetComponentTransform().GetRelativeTransform({TargetRotation, TargetLocation})
+			FTransform{TargetRotation, TargetCapsuleLocation}.GetRelativeTransform(TargetPrimitive->GetComponentTransform())
 		};
 
-		Parameters.TargetRelativeLocation = TargetRelativeTransform.GetLocation();
-		Parameters.TargetRelativeRotation = TargetRelativeTransform.Rotator();
+		Parameters.TargetLocation = TargetRelativeTransform.GetLocation();
+		Parameters.TargetRotation = TargetRelativeTransform.Rotator();
 	}
 	else
 	{
-		Parameters.TargetRelativeLocation = TargetLocation;
-		Parameters.TargetRelativeRotation = TargetRotation.Rotator();
+		Parameters.TargetLocation = TargetCapsuleLocation;
+		Parameters.TargetRotation = TargetRotation.Rotator();
 	}
 
 	if (GetLocalRole() >= ROLE_Authority)
@@ -465,36 +465,6 @@ void AAlsCharacter::StartMantlingImplementation(const FAlsMantlingParameters& Pa
 		return;
 	}
 
-	const auto StartTime{CalculateMantlingStartTime(MantlingSettings, Parameters.MantlingHeight)};
-	const auto Duration{MantlingSettings->Montage->GetPlayLength() - StartTime};
-	const auto PlayRate{MantlingSettings->Montage->RateScale};
-
-	const auto TargetAnimationLocation{UAlsMontageUtility::ExtractLastRootTransformFromMontage(MantlingSettings->Montage).GetLocation()};
-
-	if (FMath::IsNearlyZero(TargetAnimationLocation.Z))
-	{
-		UE_LOG(LogAls, Warning, TEXT("Can't start mantling! The %s animation montage has incorrect root motion,")
-		       TEXT(" the final vertical location of the character must be non-zero!"), *MantlingSettings->Montage->GetName());
-		return;
-	}
-
-	// Calculate actor offsets (offsets between actor and target transform).
-
-	const auto bUseRelativeLocation{MovementBaseUtility::UseRelativeLocation(Parameters.TargetPrimitive.Get())};
-	const auto TargetRelativeRotation{Parameters.TargetRelativeRotation.GetNormalized()};
-
-	const auto TargetTransform{
-		bUseRelativeLocation
-			? FTransform{
-				TargetRelativeRotation, Parameters.TargetRelativeLocation,
-				Parameters.TargetPrimitive->GetComponentScale()
-			}.GetRelativeTransformReverse(Parameters.TargetPrimitive->GetComponentTransform())
-			: FTransform{TargetRelativeRotation, Parameters.TargetRelativeLocation}
-	};
-
-	const auto ActorFeetLocationOffset{GetCharacterMovement()->GetActorFeetLocation() - TargetTransform.GetLocation()};
-	const auto ActorRotationOffset{TargetTransform.GetRotation().Inverse() * GetActorQuat()};
-
 	// Reset network smoothing.
 
 	GetCharacterMovement()->NetworkSmoothingMode = ENetworkSmoothingMode::Disabled;
@@ -511,20 +481,69 @@ void AAlsCharacter::StartMantlingImplementation(const FAlsMantlingParameters& Pa
 
 	GetCharacterMovement()->SetBase(Parameters.TargetPrimitive.Get());
 
-	// Apply mantling root motion.
+	// Create mantling root motion.
 
 	const auto RootMotionSource{MakeShared<FAlsRootMotionSource_Mantling>()};
 	RootMotionSource->InstanceName = __FUNCTION__;
-	RootMotionSource->Duration = Duration / PlayRate;
 	RootMotionSource->MantlingSettings = MantlingSettings;
 	RootMotionSource->TargetPrimitive = Parameters.TargetPrimitive;
-	RootMotionSource->TargetRelativeLocation = Parameters.TargetRelativeLocation;
-	RootMotionSource->TargetRelativeRotation = TargetRelativeRotation;
-	RootMotionSource->ActorFeetLocationOffset = ActorFeetLocationOffset;
-	RootMotionSource->ActorRotationOffset = ActorRotationOffset.Rotator();
-	RootMotionSource->TargetAnimationLocation = TargetAnimationLocation;
+
+	const auto StartTime{CalculateMantlingStartTime(MantlingSettings, Parameters.MantlingHeight)};
+	const auto Duration{MantlingSettings->Montage->GetPlayLength() - StartTime};
+	const auto PlayRate{MantlingSettings->Montage->RateScale};
+
+	RootMotionSource->Duration = Duration / PlayRate;
 	RootMotionSource->MontageStartTime = StartTime;
 
+	const auto bUseRelativeLocation{MovementBaseUtility::UseRelativeLocation(Parameters.TargetPrimitive.Get())};
+	const FTransform MeshTransform{GetBaseRotationOffset()};
+
+	// Extract the initial root transform, invert it, convert from the mesh space to the actor space, and apply it to the actor's transform.
+
+	const auto ActorTransform{GetActorTransform()};
+
+	auto StartRootTransform{UAlsMontageUtility::ExtractRootTransformFromMontage(MantlingSettings->Montage, StartTime)};
+	StartRootTransform.SetScale3D(FVector::OneVector);
+
+	const auto StartRootTransformInverse{StartRootTransform.GetRelativeTransformReverse(MeshTransform)};
+	auto StartTransform{StartRootTransformInverse * ActorTransform};
+
+	if (bUseRelativeLocation)
+	{
+		// Convert the actor's transform to be relative to the target primitive.
+		StartTransform.SetToRelativeTransform(Parameters.TargetPrimitive->GetComponentTransform());
+	}
+
+	RootMotionSource->StartRotation = StartTransform.Rotator();
+	RootMotionSource->StartLocation = StartTransform.GetLocation();
+
+	// Extract the final root transform, invert it, convert from the mesh space to the actor space, and apply it to the target transform.
+
+	FTransform TargetTransform{Parameters.TargetRotation.GetNormalized(), Parameters.TargetLocation};
+
+	if (bUseRelativeLocation)
+	{
+		// Convert the relative target transform back to world space.
+		TargetTransform *= Parameters.TargetPrimitive->GetComponentTransform();
+		TargetTransform.SetScale3D(FVector::OneVector);
+	}
+
+	auto EndRootTransform{UAlsMontageUtility::ExtractLastRootTransformFromMontage(MantlingSettings->Montage)};
+	EndRootTransform.SetScale3D(FVector::OneVector);
+
+	const auto EndRootTransformInverse{EndRootTransform.GetRelativeTransformReverse(MeshTransform)};
+	auto NewTargetTransform{EndRootTransformInverse * TargetTransform};
+
+	if (bUseRelativeLocation)
+	{
+		// Convert the target transform to be relative to the target primitive.
+		NewTargetTransform.SetToRelativeTransform(Parameters.TargetPrimitive->GetComponentTransform());
+	}
+
+	RootMotionSource->TargetRotation = NewTargetTransform.Rotator();
+	RootMotionSource->TargetLocation = NewTargetTransform.GetLocation();
+
+	// Apply root motion.
 	MantlingState.RootMotionSourceId = GetCharacterMovement()->ApplyRootMotionSource(RootMotionSource);
 
 	// Play the animation montage if valid.
@@ -728,7 +747,7 @@ void AAlsCharacter::StartRagdollingImplementation()
 
 	GetMesh()->bUpdateJointsFromAnimation = true; // Required for the flail animation to work properly.
 
-	if (!GetMesh()->IsRunningParallelEvaluation() && GetMesh()->GetBoneSpaceTransforms().Num() > 0)
+	if (!GetMesh()->IsRunningParallelEvaluation() && !GetMesh()->GetBoneSpaceTransforms().IsEmpty())
 	{
 		GetMesh()->UpdateRBJointMotors();
 	}
@@ -755,6 +774,10 @@ void AAlsCharacter::StartRagdollingImplementation()
 	GetMesh()->SetCollisionObjectType(ECC_PhysicsBody);
 	GetMesh()->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 	GetMesh()->SetSimulatePhysics(true);
+
+	// This is required for the ragdoll to behave properly when any body instance is set to simulated in a physics asset.
+	// TODO Check the need for this in future engine versions.
+	GetMesh()->ResetAllBodiesSimulatePhysics();
 
 	const auto* PelvisBody{GetMesh()->GetBodyInstance(UAlsConstants::PelvisBoneName())};
 	FVector PelvisLocation;
@@ -866,9 +889,9 @@ void AAlsCharacter::RefreshRagdolling(const float DeltaTime)
 		// Apply ragdoll location corrections.
 
 		static constexpr auto PullForce{750.0f};
-		static constexpr auto InterpolationSpeed{0.6f};
+		static constexpr auto InterpolationHalfLife{1.2f};
 
-		RagdollingState.PullForce = FMath::FInterpTo(RagdollingState.PullForce, PullForce, DeltaTime, InterpolationSpeed);
+		RagdollingState.PullForce = UAlsMath::DamperExact(RagdollingState.PullForce, PullForce, DeltaTime, InterpolationHalfLife);
 
 		const auto HorizontalSpeedSquared{RagdollingState.Velocity.SizeSquared2D()};
 
@@ -949,7 +972,7 @@ FVector AAlsCharacter::RagdollTraceGround(bool& bGrounded) const
 	// 	                                        {0.0f, 0.75f, 1.0f}, 0.0f);
 	// #endif
 
-	return FVector{
+	return {
 		RagdollLocation.X, RagdollLocation.Y,
 		bGrounded
 			? Hit.Location.Z + CapsuleHalfHeight - CapsuleRadius + UCharacterMovementComponent::MIN_FLOOR_DIST
@@ -1074,7 +1097,7 @@ void AAlsCharacter::StopRagdollingImplementation()
 
 		GetWorldTimerManager().SetTimerForNextTick(FTimerDelegate::CreateWeakLambda(this, [this]
 		{
-			ALS_ENSURE(!GetMesh()->bEnableUpdateRateOptimizations);
+			ALS_ENSURE(!GetMesh()->bEnableUpdateRateOptimizations); // NOLINT(clang-diagnostic-unused-value)
 			GetMesh()->bEnableUpdateRateOptimizations = true;
 		}));
 	}

@@ -3,6 +3,7 @@
 #include "AlsAnimationInstance.h"
 #include "AlsAnimationInstanceProxy.h"
 #include "AlsCharacter.h"
+#include "Components/SkeletalMeshComponent.h"
 #include "Utility/AlsMacros.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(AlsLinkedAnimationInstance)
@@ -41,10 +42,10 @@ void UAlsLinkedAnimationInstance::NativeInitializeAnimation()
 
 void UAlsLinkedAnimationInstance::NativeBeginPlay()
 {
-	ALS_ENSURE_MESSAGE(Parent.IsValid(),
-	                   TEXT("%s (%s) should only be used as a linked animation instance within the %s animation blueprint!"),
-	                   ALS_GET_TYPE_STRING(UAlsLinkedAnimationInstance).GetData(), *GetClass()->GetName(),
-	                   ALS_GET_TYPE_STRING(UAlsAnimationInstance).GetData());
+	std::ignore = ALS_ENSURE_MESSAGE(Parent.IsValid(),
+	                                 TEXT("%s (%s) should only be used as a linked animation instance within the %s animation blueprint!"),
+	                                 ALS_GET_TYPE_STRING(UAlsLinkedAnimationInstance).GetData(), *GetClass()->GetName(),
+	                                 ALS_GET_TYPE_STRING(UAlsAnimationInstance).GetData());
 
 	Super::NativeBeginPlay();
 }
@@ -54,19 +55,19 @@ FAnimInstanceProxy* UAlsLinkedAnimationInstance::CreateAnimInstanceProxy()
 	return new FAlsAnimationInstanceProxy{this};
 }
 
-void UAlsLinkedAnimationInstance::InitializeLook()
+void UAlsLinkedAnimationInstance::InitializeHead()
 {
 	if (Parent.IsValid())
 	{
-		Parent->InitializeLook();
+		Parent->InitializeHead();
 	}
 }
 
-void UAlsLinkedAnimationInstance::RefreshLook()
+void UAlsLinkedAnimationInstance::RefreshHead()
 {
 	if (Parent.IsValid())
 	{
-		Parent->RefreshLook();
+		Parent->RefreshHead();
 	}
 }
 

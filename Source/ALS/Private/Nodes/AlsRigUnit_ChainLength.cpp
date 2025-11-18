@@ -4,10 +4,11 @@
 
 namespace AlsChainLengthRigUnit
 {
-	float CalculateChainLength(FRigTransformElement* AncestorElement, FRigTransformElement* DescendantElement,
-	                           const URigHierarchy* Hierarchy, const ERigTransformType::Type TransformType, TBitArray<>& VisitedElements)
+	static float CalculateChainLength(const FRigTransformElement* AncestorElement, const FRigTransformElement* DescendantElement,
+	                                  const URigHierarchy* Hierarchy, const ERigTransformType::Type TransformType,
+	                                  TBitArray<>& VisitedElements)
 	{
-		// Based on URigHierarchy::IsDependentOn().
+		// Based on URigHierarchy::IsDependentOn() and URigHierarchy::Traverse().
 
 		if (AncestorElement == nullptr || DescendantElement == nullptr)
 		{
@@ -64,7 +65,7 @@ namespace AlsChainLengthRigUnit
 		}
 
 		return UE_REAL_TO_FLOAT(ChainLength + FVector::Distance(
-			Hierarchy->GetTransform(DescendantElement, TransformType).GetLocation(),
+			Hierarchy->GetTransform(const_cast<FRigTransformElement*>(DescendantElement), TransformType).GetLocation(),
 			Hierarchy->GetTransform(ParentElement, TransformType).GetLocation()));
 	}
 }
@@ -82,8 +83,8 @@ FAlsRigUnit_ChainLength_Execute()
 		return;
 	}
 
-	auto* AncestorTransformElement{const_cast<FRigTransformElement*>(Cast<FRigTransformElement>(CachedAncestorItem.GetElement()))};
-	auto* DescendantTransformElement{const_cast<FRigTransformElement*>(Cast<FRigTransformElement>(CachedDescendantItem.GetElement()))};
+	auto* AncestorTransformElement{Cast<FRigTransformElement>(CachedAncestorItem.GetElement())};
+	auto* DescendantTransformElement{Cast<FRigTransformElement>(CachedDescendantItem.GetElement())};
 	const auto TransformType{bInitial ? ERigTransformType::InitialGlobal : ERigTransformType::CurrentGlobal};
 	TBitArray VisitedElements{false, Hierarchy->Num()};
 
@@ -92,7 +93,7 @@ FAlsRigUnit_ChainLength_Execute()
 
 	if (Length < 0.0f)
 	{
-		Length = FMath::Max(0.0f, AlsChainLengthRigUnit::CalculateChainLength(DescendantTransformElement, AncestorTransformElement,
+		Length = FMath::Max(0.0f, AlsChainLengthRigUnit::CalculateChainLength(DescendantTransformElement, AncestorTransformElement, // NOLINT(readability-suspicious-call-argument)
 		                                                                      Hierarchy, TransformType, VisitedElements));
 	}
 }

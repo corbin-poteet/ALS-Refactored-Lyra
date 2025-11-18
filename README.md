@@ -6,7 +6,7 @@ Game Feature Plugin version of [Sixze's Refactored Advanced Locomotion System V4
 
 The main goal of this plugin is to build on top of ALS-Refactored to allow it to be easily implemented into a Lyra Framework project, while providing minimal changes to Lyra and ALS-Refactored, to ensure modularity and future compatibility.
 
-Currently supports Unreal 5.4
+Currently supports Unreal 5.7
 
 <details>
 
@@ -20,6 +20,19 @@ Currently supports Unreal 5.4
 - Converted UE5Manny ALS animations to use Lyra's context effects system.
 
 </details>
+
+## Supported Unreal Engine Versions & Platforms
+
+| Plugin Version                                                            | Unreal Engine Version           |
+|---------------------------------------------------------------------------|---------------------------------|
+| [4.16](https://github.com/Sixze/ALS-Refactored/releases/tag/4.16)         | 5.6                            |
+| [4.15](https://github.com/Sixze/ALS-Refactored/releases/tag/4.15)         | 5.5                             |
+| [4.14](https://github.com/Sixze/ALS-Refactored/releases/tag/4.14)         | 5.4                             |
+| [4.13](https://github.com/Sixze/ALS-Refactored/releases/tag/4.13)         | 5.3                             |
+| [4.12](https://github.com/Sixze/ALS-Refactored/releases/tag/4.12)         | 5.2                             |
+| [4.11](https://github.com/Sixze/ALS-Refactored/releases/tag/4.11)         | 5.1                             |
+| [4.10](https://github.com/Sixze/ALS-Refactored/releases/tag/4.10) - 4.9   | 5.0                             |
+| [4.8](https://github.com/Sixze/ALS-Refactored/releases/tag/4.8) and below | 4.26, 4.27 and 5.0 Early Access |
 
 **The plugin is developed and tested primarily on Windows, so use it on other platforms at your own risk.**
 

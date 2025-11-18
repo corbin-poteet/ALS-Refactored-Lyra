@@ -15,6 +15,13 @@ public:
 	UFUNCTION(BlueprintPure, Category = "ALS|Montage Utility", Meta = (ReturnDisplayName = "Transform"))
 	static FTransform ExtractLastRootTransformFromMontage(const UAnimMontage* Montage);
 
+	UFUNCTION(BlueprintPure, Category = "ALS|Montage Utility", Meta = (ReturnDisplayName = "Transform"))
+	static FTransform ExtractRootMotionFromMontage(const UAnimMontage* Montage, float StartTime, float EndTime);
+
+	// Stops all active animation montages that use the specified slot.
+	UFUNCTION(BlueprintCallable, Category = "ALS|Montage Utility")
+	static void StopMontagesWithSlot(UAnimInstance* AnimationInstance, const FName& SlotName, float BlendOutDuration = -1.0f);
+
 	// Stops all active animation montages that share at least one slot with the reference montage.
 	UFUNCTION(BlueprintCallable, Category = "ALS|Montage Utility")
 	static void StopMontagesWithAnySharedSlots(UAnimInstance* AnimationInstance, const UAnimMontage* ReferenceMontage,

@@ -141,6 +141,9 @@ public:
 
 	virtual void Restart() override;
 
+public:
+	const UAlsCharacterSettings* GetSettings() const;
+
 protected:
 	UFUNCTION(BlueprintNativeEvent, Category = "Als Character", Meta = (ReturnDisplayName = "Handled"))
 	bool OnCalculateCamera(float DeltaTime, FMinimalViewInfo& ViewInfo);
@@ -394,8 +397,6 @@ public:
 private:
 	void SetDesiredVelocityYawAngle(float NewVelocityYawAngle);
 
-	void RefreshLocomotionLocationAndRotation();
-
 	void RefreshLocomotionEarly();
 
 	void RefreshLocomotion();
@@ -436,7 +437,7 @@ protected:
 
 	virtual bool RefreshCustomGroundedNotMovingRotation(float DeltaTime);
 
-	float CalculateGroundedMovingRotationInterpolationSpeed() const;
+	float CalculateGroundedMovingRotationInterpolationHalfLife() const;
 
 	void RefreshGroundedAimingRotation(float DeltaTime);
 
@@ -452,13 +453,13 @@ protected:
 
 	void RefreshInAirAimingRotation(float DeltaTime);
 
-	void SetRotationSmooth(float TargetYawAngle, float DeltaTime, float InterpolationSpeed);
+	void SetRotationSmooth(float TargetYawAngle, float DeltaTime, float InterpolationHalfLife);
 
-	void SetRotationExtraSmooth(float TargetYawAngle, float DeltaTime, float InterpolationSpeed, float TargetYawAngleRotationSpeed);
+	void SetRotationExtraSmooth(float TargetYawAngle, float DeltaTime, float InterpolationHalfLife, float TargetYawAngleRotationSpeed);
 
 	void SetRotationInstant(float TargetYawAngle, ETeleportType Teleport = ETeleportType::None);
 
-	void RefreshTargetYawAngleUsingLocomotionRotation();
+	void RefreshTargetYawAngleUsingActorRotation();
 
 	void SetTargetYawAngle(float TargetYawAngle);
 
@@ -608,6 +609,11 @@ private:
 
 	void DisplayDebugMantling(const UCanvas* Canvas, float Scale, float HorizontalLocation, float& VerticalLocation) const;
 };
+
+inline const UAlsCharacterSettings* AAlsCharacter::GetSettings() const
+{
+	return Settings;
+}
 
 inline const FGameplayTag& AAlsCharacter::GetViewMode() const
 {

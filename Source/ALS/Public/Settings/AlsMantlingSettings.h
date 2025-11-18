@@ -1,5 +1,6 @@
 ﻿#pragma once
 
+#include "AlphaBlend.h"
 #include "Engine/DataAsset.h"
 #include "Engine/EngineTypes.h"
 #include "Engine/NetSerialization.h"
@@ -25,10 +26,10 @@ struct ALS_API FAlsMantlingParameters
 	TWeakObjectPtr<UPrimitiveComponent> TargetPrimitive;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ALS")
-	FVector_NetQuantize100 TargetRelativeLocation{ForceInit};
+	FVector_NetQuantize100 TargetLocation{ForceInit};
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ALS")
-	FRotator TargetRelativeRotation{ForceInit};
+	FRotator TargetRotation{ForceInit};
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ALS", Meta = (ForceUnits = "cm"))
 	float MantlingHeight{0.0f};
@@ -57,13 +58,22 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Settings", Meta = (ClampMin = 0, EditCondition = "!bAutoCalculateStartTime"))
 	FVector2f StartTime{0.5f, 0.0f};
 
-	// Optional mantling time to horizontal correction amount curve.
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Settings")
-	TObjectPtr<UCurveFloat> HorizontalCorrectionCurve;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Settings", Meta = (ClampMin = 0, ForceUnits = "t"))
+	FFloatInterval MotionWarpingTimeRange{0.0f, 0.3f};
 
-	// Optional mantling time to vertical correction amount curve.
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Settings")
-	TObjectPtr<UCurveFloat> VerticalCorrectionCurve;
+	EAlphaBlendOption MotionWarpingLocationBlendOption{EAlphaBlendOption::Linear};
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Settings",
+		Meta = (EditCondition = "MotionWarpingLocationBlendOption == EAlphaBlendOption::Custom", EditConditionHides))
+	TObjectPtr<UCurveFloat> MotionWarpingLocationCustomBlendCurve;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Settings")
+	EAlphaBlendOption MotionWarpingRotationBlendOption{EAlphaBlendOption::HermiteCubic};
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Settings",
+		Meta = (EditCondition = "MotionWarpingRotationBlendOption == EAlphaBlendOption::Custom", EditConditionHides))
+	TObjectPtr<UCurveFloat> MotionWarpingRotationCustomBlendCurve;
 };
 
 USTRUCT(BlueprintType)
@@ -120,7 +130,10 @@ public:
 	FAlsMantlingTraceSettings GroundedTrace;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ALS")
-	FAlsMantlingTraceSettings InAirTrace{{50.0f, 150.0f}, 70.0f};
+	FAlsMantlingTraceSettings InAirTrace{
+		.LedgeHeight = {50.0f, 150.0f},
+		.ReachDistance = 70.0f
+	};
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ALS")
 	TEnumAsByte<ECollisionChannel> MantlingTraceChannel{ECC_Visibility};

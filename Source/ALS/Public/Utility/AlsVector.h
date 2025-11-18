@@ -73,8 +73,8 @@ public:
 	static FVector SlerpSkipNormalization(const FVector& From, const FVector& To, float Ratio);
 
 	UFUNCTION(BlueprintPure, Category = "ALS|Vector Utility", Meta = (AutoCreateRefTerm = "Current, Target", ReturnDisplayName = "Vector"))
-	static FVector SpringDampVector(UPARAM(ref) FAlsSpringVectorState& SpringState, const FVector& Current, const FVector& Target,
-	                                float DeltaTime, float Frequency, float DampingRatio, float TargetVelocityAmount = 1.0f);
+	static FVector SpringDamperVector(UPARAM(ref) FAlsSpringVectorState& SpringState, const FVector& Current, const FVector& Target,
+	                                  float DeltaTime, float Frequency, float DampingRatio, float TargetVelocityAmount = 1.0f);
 };
 
 inline void FAlsSpringVectorState::Reset()
@@ -179,8 +179,11 @@ inline double UAlsVector::AngleBetweenSkipNormalization(const FVector& From, con
 
 inline float UAlsVector::AngleBetweenSignedXY(const FVector3f& From, const FVector3f& To)
 {
-	const auto FromXY{FVector2f{From}.GetSafeNormal()};
-	const auto ToXY{FVector2f{To}.GetSafeNormal()};
+	FVector2f FromXY{From};
+	FromXY.Normalize();
+
+	FVector2f ToXY{To};
+	ToXY.Normalize();
 
 	// return FMath::RadiansToDegrees(FMath::Atan2(FromXY ^ ToXY, FromXY | ToXY));
 

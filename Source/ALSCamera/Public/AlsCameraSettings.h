@@ -22,8 +22,9 @@ struct ALSCAMERA_API FAlsTraceDistanceSmoothingSettings
 {
 	GENERATED_BODY()
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ALS", Meta = (ClampMin = 0))
-	float InterpolationSpeed{3.0f};
+	// The lower the value, the faster the interpolation. A zero value results in instant interpolation.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ALS", Meta = (ClampMin = 0, ForceUnits = "s"))
+	float InterpolationHalfLife{0.2f};
 };
 
 USTRUCT(BlueprintType)
@@ -63,15 +64,6 @@ struct ALSCAMERA_API FAlsThirdPersonCameraSettings
 	FAlsTraceDistanceSmoothingSettings TraceDistanceSmoothing;
 };
 
-USTRUCT(BlueprintType)
-struct ALSCAMERA_API FAlsCameraLagSubsteppingSettings
-{
-	GENERATED_BODY()
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ALS", Meta = (ClampMin = 0.005, ClampMax = 0.5, ForceUnits = "s"))
-	float LagSubstepDeltaTime{1.0f / 60.0f};
-};
-
 UCLASS(Blueprintable, BlueprintType)
 class ALSCAMERA_API UAlsCameraSettings : public UDataAsset
 {
@@ -81,8 +73,8 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Settings")
 	uint8 bIgnoreTimeDilation : 1 {true};
 
-	// The camera will be teleported if the character has moved further than this
-	// distance in 1 frame. If zero is specified, then teleportation will be disabled.
+	// Camera will be teleported if the actor has moved farther than this
+	// distance in 1 frame. If zero is specified, teleportation will be disabled.
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Settings", Meta = (ClampMin = 0, ForceUnits = "cm"))
 	float TeleportDistanceThreshold{200.0f};
 
@@ -91,13 +83,6 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Settings")
 	FAlsThirdPersonCameraSettings ThirdPerson;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Settings", Meta = (InlineEditConditionToggle))
-	uint8 bEnableCameraLagSubstepping : 1 {false};
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Settings",
-		DisplayName = "Enable Camera Lag Substepping", Meta = (EditCondition = "bEnableCameraLagSubstepping"))
-	FAlsCameraLagSubsteppingSettings CameraLagSubstepping;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Settings")
 	FPostProcessSettings PostProcess;

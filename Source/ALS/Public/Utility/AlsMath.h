@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Kismet/BlueprintFunctionLibrary.h"
+#include "State/AlsMovementDirection.h"
 #include "AlsMath.generated.h"
 
 USTRUCT(BlueprintType)
@@ -34,25 +35,20 @@ public:
 	UFUNCTION(BlueprintPure, Category = "ALS|Math Utility", Meta = (ReturnDisplayName = "Value"))
 	static float LerpClamped(float From, float To, float Ratio);
 
+	UFUNCTION(BlueprintPure, Category = "ALS|Math Utility", Meta = (ReturnDisplayName = "Alpha"))
+	static float DamperExactAlpha(float DeltaTime, float HalfLife);
+
+	// HalfLife is the time it takes for the distance to the target to be reduced by half.
 	template <typename ValueType>
-	static ValueType Damp(const ValueType& Current, const ValueType& Target, float DeltaTime, float Smoothing);
-
-	UFUNCTION(BlueprintPure, Category = "ALS|Math Utility", Meta = (ReturnDisplayName = "Interpolation Amount"))
-	static float Damp(float DeltaTime, float Smoothing);
-
-	template <typename ValueType>
-	static ValueType ExponentialDecay(const ValueType& Current, const ValueType& Target, float DeltaTime, float Lambda);
-
-	UFUNCTION(BlueprintPure, Category = "ALS|Math Utility", Meta = (ReturnDisplayName = "Interpolation Amount"))
-	static float ExponentialDecay(float DeltaTime, float Lambda);
+	static ValueType DamperExact(const ValueType& Current, const ValueType& Target, float DeltaTime, float HalfLife);
 
 	template <typename ValueType, typename StateType>
-	static ValueType SpringDamp(StateType& SpringState, const ValueType& Current, const ValueType& Target,
-	                            float DeltaTime, float Frequency, float DampingRatio, float TargetVelocityAmount = 1.0f);
+	static ValueType SpringDamper(StateType& SpringState, const ValueType& Current, const ValueType& Target,
+	                              float DeltaTime, float Frequency, float DampingRatio, float TargetVelocityAmount = 1.0f);
 
 	UFUNCTION(BlueprintPure, Category = "ALS|Math Utility", Meta = (ReturnDisplayName = "Value"))
-	static float SpringDampFloat(UPARAM(ref) FAlsSpringFloatState& SpringState, float Current, float Target,
-	                             float DeltaTime, float Frequency, float DampingRatio, float TargetVelocityAmount = 1.0f);
+	static float SpringDamperFloat(UPARAM(ref) FAlsSpringFloatState& SpringState, float Current, float Target,
+	                               float DeltaTime, float Frequency, float DampingRatio, float TargetVelocityAmount = 1.0f);
 
 	UFUNCTION(BlueprintPure, Category = "ALS|Math Utility", Meta = (ReturnDisplayName = "Direction"))
 	static EAlsMovementDirection CalculateMovementDirection(float Angle, float ForwardHalfAngle, float AngleThreshold);
@@ -73,11 +69,11 @@ inline void FAlsSpringFloatState::Reset()
 
 inline float UAlsMath::Clamp01(const float Value)
 {
-	return Value <= 0.0f
-		       ? 0.0f
-		       : Value >= 1.0f
-		       ? 1.0f
-		       : Value;
+	return Value > 0.0f
+		       ? Value < 1.0f
+			         ? Value
+			         : 1.0f
+		       : 0.0f;
 }
 
 inline float UAlsMath::LerpClamped(const float From, const float To, const float Ratio)
@@ -85,39 +81,22 @@ inline float UAlsMath::LerpClamped(const float From, const float To, const float
 	return From + (To - From) * Clamp01(Ratio);
 }
 
-template <typename ValueType>
-ValueType UAlsMath::Damp(const ValueType& Current, const ValueType& Target, const float DeltaTime, const float Smoothing)
+inline float UAlsMath::DamperExactAlpha(const float DeltaTime, const float HalfLife)
 {
-	return Smoothing > 0.0f
-		       ? FMath::Lerp(Current, Target, Damp(DeltaTime, Smoothing))
-		       : Target;
-}
+	// https://theorangeduck.com/page/spring-roll-call#exactdamper
 
-inline float UAlsMath::Damp(const float DeltaTime, const float Smoothing)
-{
-	// https://www.rorydriscoll.com/2016/03/07/frame-rate-independent-damping-using-lerp/
-
-	return 1.0f - FMath::Pow(Smoothing, DeltaTime);
-}
-
-inline float UAlsMath::ExponentialDecay(const float DeltaTime, const float Lambda)
-{
-	// https://www.rorydriscoll.com/2016/03/07/frame-rate-independent-damping-using-lerp/
-
-	return 1.0f - FMath::InvExpApprox(Lambda * DeltaTime);
+	return 1.0f - FMath::InvExpApprox(UE_LN2 / (HalfLife + UE_SMALL_NUMBER) * DeltaTime);
 }
 
 template <typename ValueType>
-ValueType UAlsMath::ExponentialDecay(const ValueType& Current, const ValueType& Target, const float DeltaTime, const float Lambda)
+ValueType UAlsMath::DamperExact(const ValueType& Current, const ValueType& Target, const float DeltaTime, const float HalfLife)
 {
-	return Lambda > 0.0f
-		       ? FMath::Lerp(Current, Target, ExponentialDecay(DeltaTime, Lambda))
-		       : Target;
+	return FMath::Lerp(Current, Target, DamperExactAlpha(DeltaTime, HalfLife));
 }
 
 template <typename ValueType, typename StateType>
-ValueType UAlsMath::SpringDamp(StateType& SpringState, const ValueType& Current, const ValueType& Target, const float DeltaTime,
-                               const float Frequency, const float DampingRatio, const float TargetVelocityAmount)
+ValueType UAlsMath::SpringDamper(StateType& SpringState, const ValueType& Current, const ValueType& Target, const float DeltaTime,
+                                 const float Frequency, const float DampingRatio, const float TargetVelocityAmount)
 {
 	if (DeltaTime <= UE_SMALL_NUMBER)
 	{
